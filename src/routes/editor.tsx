@@ -135,6 +135,10 @@ function regionAt(regions: Region[], x: number, y: number): Region | undefined {
 }
 
 // ---------- page ----------
+// the editor is a unified workspace. lenses (layout, components,
+// pcb, case, caps) are different views into the same project model;
+// state is hoisted here so configs and selections survive lens
+// switches, and the side panels read the same source of truth.
 function EditorPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState(4);
@@ -143,6 +147,11 @@ function EditorPage() {
   const [projectName, setProjectName] = useState("untitled macropad");
   const [stage, setStage] = useState<Stage>("layout");
   const [ready, setReady] = useState(false);
+
+  // hoisted configs so switching lenses never resets work the user has done.
+  const [pcbCfg, setPcbCfg] = useState<PcbConfig>(() => defaultPcb());
+  const [caseCfg, setCaseCfg] = useState<CaseConfig>(() => defaultCase());
+  const [capsCfg, setCapsCfg] = useState<CapsConfig>(() => defaultCaps());
 
   useEffect(() => {
     const raw = typeof window !== "undefined" ? sessionStorage.getItem("keeberia.init") : null;
@@ -162,6 +171,34 @@ function EditorPage() {
   const next = () => stageIdx < STAGES.length - 1 && setStage(STAGES[stageIdx + 1]);
   const prev = () => stageIdx > 0 && setStage(STAGES[stageIdx - 1]);
 
+  function applyTemplate(t: ProjectTemplate) {
+    setRows(t.rows);
+    setCols(t.cols);
+    setRegions(t.regions.map((r) => ({ ...r, id: uid() })));
+    setProjectName(t.name);
+  }
+
+  // health inputs derived from the live project model.
+  const pcbValidations = useMemo(
+    () => validatePcb(pcbCfg, regions, rows, cols),
+    [pcbCfg, regions, rows, cols],
+  );
+  const caseValidations = useMemo(
+    () => validateCase(caseCfg, regions, rows, cols),
+    [caseCfg, regions, rows, cols],
+  );
+
+  const healthInput = {
+    rows, cols,
+    regions: regions.map((r) => ({ id: r.id, type: r.type, x: r.x, y: r.y, w: r.w, h: r.h, spec: r.spec })),
+    pcbValid: pcbValidations.every((v) => v.level !== "error"),
+    pcbWarnings: pcbValidations.filter((v) => v.level === "warn").length,
+    caseWarnings: caseValidations.filter((v) => v.level === "warn").length,
+    caseErrors: caseValidations.filter((v) => v.level === "error").length,
+    hasUsbCutout: caseCfg.cutoutUsb,
+    capsConfigured: regions.some((r) => r.type === "key"),
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <EditorHeader
@@ -173,33 +210,42 @@ function EditorPage() {
         onNext={next}
         onPrev={prev}
       />
-      <main className="flex-1 flex">
-        {stage === "layout" ? (
-          <EditorWorkspace
-            rows={rows}
-            cols={cols}
-            setRows={setRows}
-            setCols={setCols}
-            regions={regions}
-            setRegions={setRegions}
-          />
-        ) : stage === "components" ? (
-          <ComponentsWorkspace
-            rows={rows}
-            cols={cols}
-            regions={regions}
-            setRegions={setRegions}
-          />
-        ) : stage === "pcb" ? (
-          <PcbWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : stage === "case" ? (
-          <CaseWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : stage === "caps" ? (
-          <CapsWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : (
-          <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
-        )}
-      </main>
+      <div className="flex-1 flex min-h-0">
+        <LeftSidebar
+          regions={regions}
+          lens={stage}
+          setLens={setStage}
+          onApplyTemplate={applyTemplate}
+        />
+        <main className="flex-1 flex min-w-0">
+          {stage === "layout" ? (
+            <EditorWorkspace
+              rows={rows}
+              cols={cols}
+              setRows={setRows}
+              setCols={setCols}
+              regions={regions}
+              setRegions={setRegions}
+            />
+          ) : stage === "components" ? (
+            <ComponentsWorkspace
+              rows={rows}
+              cols={cols}
+              regions={regions}
+              setRegions={setRegions}
+            />
+          ) : stage === "pcb" ? (
+            <PcbWorkspace rows={rows} cols={cols} regions={regions} cfg={pcbCfg} setCfg={setPcbCfg} />
+          ) : stage === "case" ? (
+            <CaseWorkspace rows={rows} cols={cols} regions={regions} cfg={caseCfg} setCfg={setCaseCfg} />
+          ) : stage === "caps" ? (
+            <CapsWorkspace rows={rows} cols={cols} regions={regions} cfg={capsCfg} setCfg={setCapsCfg} caseCfg={caseCfg} />
+          ) : (
+            <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
+          )}
+        </main>
+        <RightSidebar health={healthInput} />
+      </div>
     </div>
   );
 }
