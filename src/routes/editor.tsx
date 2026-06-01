@@ -631,13 +631,6 @@ function EditorWorkspace({
           </button>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-border font-mono text-[10px] text-muted-foreground leading-relaxed">
-          <div className="uppercase tracking-[0.22em] mb-2">tips</div>
-          <p>· drag across cells to multi-select</p>
-          <p>· shift-click to add to selection</p>
-          <p>· right-click a cell for switch, insert, delete</p>
-          <p>· drag a row/column header to reorder</p>
-        </div>
       </aside>
 
       {/* canvas */}
