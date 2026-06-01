@@ -702,7 +702,9 @@ function EditorWorkspace({
             canMoveNext={canMoveCol(menu.colIndex, menu.colIndex + 2)}
           />
         )}
-      </div>
+          </>
+        )}
+      </CanvasFrame>
 
       {/* inspector */}
       <aside className="w-64 border-l border-border bg-sidebar p-4">
