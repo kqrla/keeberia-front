@@ -1034,6 +1034,7 @@ function Canvas({
           {regions.map((r) => (
             <CellTile
               key={r.id}
+              cell={CELL}
               region={r}
               selected={selected.has(r.id)}
               onClick={(e) => onSelectRegion(r.id, e)}
