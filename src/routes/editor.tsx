@@ -7,7 +7,40 @@ import {
   Check,
 } from "lucide-react";
 import { Comp2D, type CompType } from "../components/keeberia/Comp2D";
-import { LeftSidebar, ReadinessFloating, type ProjectTemplate } from "../components/keeberia/EditorPanels";
+import { LeftSidebar, type ProjectTemplate } from "../components/keeberia/EditorPanels";
+
+// per-lens tip text. keeping these here (not in the panel module)
+// means each workspace owns its own help copy and the modal stays
+// generic.
+const TIPS_BY_LENS: Record<Stage, string[]> = {
+  layout: [
+    "drag across cells to multi-select",
+    "shift-click to add to selection",
+    "right-click a cell for switch, insert, delete",
+    "drag a row or column header to reorder",
+  ],
+  components: [
+    "click a cell to select",
+    "shift-click to multi-select",
+    "click a palette item to assign",
+    "filter view to focus on one type",
+  ],
+  pcb: [
+    "the pcb outline follows your layout automatically",
+    "warnings flag clearance and routing issues",
+    "switch traces and pad density live in the inspector",
+  ],
+  case: [
+    "case style changes how the pcb mounts",
+    "watch the clearance checks before exporting",
+    "usb and reset cutouts can be toggled here",
+  ],
+  caps: [
+    "switch view modes to preview the finished device",
+    "exploded view helps verify stack heights",
+    "keycap profile changes typing feel and overall height",
+  ],
+};
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
