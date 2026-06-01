@@ -2263,7 +2263,7 @@ function defaultCaps(): CapsConfig {
     material: "pbt",
     capColor: "#e9e4d8",
     legendColor: "#1c1c1c",
-    knobStyle: "knurled" as unknown as KnobStyle === ("knurled" as KnobStyle) ? "ribbed" : "ribbed",
+    knobStyle: "ribbed",
     knobDiameter: 20,
     knobHeight: 14,
     indicator: "line",
