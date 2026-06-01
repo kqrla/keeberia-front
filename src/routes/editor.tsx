@@ -189,6 +189,8 @@ function EditorPage() {
             regions={regions}
             setRegions={setRegions}
           />
+        ) : stage === "pcb" ? (
+          <PcbWorkspace rows={rows} cols={cols} regions={regions} />
         ) : (
           <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
         )}
