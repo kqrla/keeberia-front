@@ -633,9 +633,13 @@ function EditorWorkspace({
 
       </aside>
 
-      {/* canvas */}
-      <div className="flex-1 relative overflow-auto p-10" onClick={() => { clearSelection(); }}>
+      {/* canvas. cell size is measured from the available area so the
+          grid grows with the editor body and doesn't leave whitespace. */}
+      <CanvasFrame rows={rows} cols={cols} onClickEmpty={() => clearSelection()}>
+        {(cell) => (
+          <>
         <Canvas
+          cell={cell}
           rows={rows}
           cols={cols}
           regions={regions}
