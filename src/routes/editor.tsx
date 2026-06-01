@@ -2146,8 +2146,12 @@ function validateCase(cfg: CaseConfig, regions: Region[], rows: number, cols: nu
   return out;
 }
 
-function CaseWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
-  const [cfg, setCfg] = useState<CaseConfig>(() => defaultCase());
+function CaseWorkspace({
+  rows, cols, regions, cfg, setCfg,
+}: {
+  rows: number; cols: number; regions: Region[];
+  cfg: CaseConfig; setCfg: React.Dispatch<React.SetStateAction<CaseConfig>>;
+}) {
   function patch(p: Partial<CaseConfig>) { setCfg((c) => ({ ...c, ...p })); }
   const validations = useMemo(() => validateCase(cfg, regions, rows, cols), [cfg, regions, rows, cols]);
 
