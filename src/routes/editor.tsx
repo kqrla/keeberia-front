@@ -191,6 +191,10 @@ function EditorPage() {
           />
         ) : stage === "pcb" ? (
           <PcbWorkspace rows={rows} cols={cols} regions={regions} />
+        ) : stage === "case" ? (
+          <CaseWorkspace rows={rows} cols={cols} regions={regions} />
+        ) : stage === "caps" ? (
+          <CapsWorkspace rows={rows} cols={cols} regions={regions} />
         ) : (
           <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
         )}
@@ -2013,5 +2017,712 @@ function SummaryRow({ k, v }: { k: string; v: string }) {
       <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">{k}</span>
       <span className="text-right">{v}</span>
     </div>
+  );
+}
+
+// ============================================================
+// flow four: case
+// ============================================================
+
+type CaseStyle = "tray" | "sandwich" | "top mount" | "integrated plate" | "open frame";
+type ScrewType = "m2" | "m2.5" | "m3" | "heatset insert";
+type ViewMode = "2d" | "3d";
+
+type CaseConfig = {
+  style: CaseStyle;
+  wallThickness: number;     // mm
+  pcbMargin: number;         // mm between pcb edge and inner wall
+  frontHeight: number;       // mm
+  rearHeight: number;        // mm
+  typingAngle: number;       // degrees
+  plateThickness: number;    // mm
+  screw: ScrewType;
+  cutoutUsb: boolean;
+  cutoutReset: boolean;
+  cutoutDisplay: boolean;
+  cutoutIndicators: boolean;
+  showPcb: boolean;
+  showCase: boolean;
+  showInternals: boolean;
+  view: ViewMode;
+};
+
+function defaultCase(): CaseConfig {
+  return {
+    style: "sandwich",
+    wallThickness: 3,
+    pcbMargin: 4,
+    frontHeight: 12,
+    rearHeight: 22,
+    typingAngle: 6,
+    plateThickness: 1.6,
+    screw: "m2",
+    cutoutUsb: true,
+    cutoutReset: true,
+    cutoutDisplay: true,
+    cutoutIndicators: false,
+    showPcb: true,
+    showCase: true,
+    showInternals: false,
+    view: "3d",
+  };
+}
+
+const CASE_STYLES: CaseStyle[] = ["tray", "sandwich", "top mount", "integrated plate", "open frame"];
+
+function validateCase(cfg: CaseConfig, regions: Region[], rows: number, cols: number) {
+  const out: { level: "warn" | "error"; message: string }[] = [];
+  const displays = regions.filter((r) => r.type === "oled" || r.type === "eink");
+  for (const d of displays) {
+    const onEdge = d.x === 0 || d.y === 0 || d.x + d.w === cols || d.y + d.h === rows;
+    if (onEdge && cfg.wallThickness > 2.5 && cfg.pcbMargin < 2) {
+      out.push({ level: "warn", message: `display at (${d.x},${d.y}) may collide with the enclosure wall. add pcb margin or thin the wall.` });
+    }
+  }
+  const rotaries = regions.filter((r) => r.type === "encoder" || r.type === "knob");
+  if (rotaries.length && cfg.style === "integrated plate" && cfg.frontHeight < 10) {
+    out.push({ level: "warn", message: "encoder/knob may collide with the lid. raise front height or pick a different case style." });
+  }
+  if (!cfg.cutoutUsb) {
+    out.push({ level: "error", message: "usb cutout disabled. port will not be accessible." });
+  }
+  if (cfg.pcbMargin < 1) {
+    out.push({ level: "warn", message: "pcb margin under 1mm. mounting pillars may overlap with components." });
+  }
+  if (cfg.rearHeight < cfg.frontHeight) {
+    out.push({ level: "warn", message: "rear height is lower than front. typing angle will be negative." });
+  }
+  if (cfg.wallThickness < 1.5) {
+    out.push({ level: "warn", message: "wall thickness under 1.5mm may not survive printing or milling." });
+  }
+  return out;
+}
+
+function CaseWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
+  const [cfg, setCfg] = useState<CaseConfig>(() => defaultCase());
+  function patch(p: Partial<CaseConfig>) { setCfg((c) => ({ ...c, ...p })); }
+  const validations = useMemo(() => validateCase(cfg, regions, rows, cols), [cfg, regions, rows, cols]);
+
+  const outerW = cols * 19 + (cfg.pcbMargin + cfg.wallThickness) * 2;
+  const outerH = rows * 19 + (cfg.pcbMargin + cfg.wallThickness) * 2;
+
+  return (
+    <div className="flex-1 flex bg-editor-canvas">
+      <aside className="w-72 border-r border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>case style</SectionTitle>
+        <div className="grid grid-cols-2 gap-2">
+          {CASE_STYLES.map((s) => (
+            <button
+              key={s}
+              onClick={() => patch({ style: s })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-3 rounded-md border transition-colors text-left
+                ${cfg.style === s ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <SectionTitle className="mt-6">dimensions</SectionTitle>
+        <div className="space-y-3">
+          <RangeField label="wall thickness" suffix="mm" min={1} max={8} value={cfg.wallThickness} onChange={(v) => patch({ wallThickness: v })} />
+          <RangeField label="pcb margin" suffix="mm" min={0} max={10} value={cfg.pcbMargin} onChange={(v) => patch({ pcbMargin: v })} />
+          <RangeField label="front height" suffix="mm" min={4} max={40} value={cfg.frontHeight} onChange={(v) => patch({ frontHeight: v })} />
+          <RangeField label="rear height" suffix="mm" min={4} max={50} value={cfg.rearHeight} onChange={(v) => patch({ rearHeight: v })} />
+          <RangeField label="typing angle" suffix="°" min={0} max={15} value={cfg.typingAngle} onChange={(v) => patch({ typingAngle: v })} />
+          <RangeField label="plate thickness" suffix="mm" min={1} max={5} value={cfg.plateThickness} onChange={(v) => patch({ plateThickness: v })} />
+        </div>
+
+        <SectionTitle className="mt-6">mounting</SectionTitle>
+        <div className="grid grid-cols-2 gap-2">
+          {(["m2", "m2.5", "m3", "heatset insert"] as ScrewType[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => patch({ screw: s })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-2 rounded-md border
+                ${cfg.screw === s ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <SectionTitle className="mt-6">cutouts</SectionTitle>
+        <div className="space-y-1.5">
+          <ToggleRow label="usb cutout" value={cfg.cutoutUsb} onChange={(v) => patch({ cutoutUsb: v })} />
+          <ToggleRow label="reset button" value={cfg.cutoutReset} onChange={(v) => patch({ cutoutReset: v })} />
+          <ToggleRow label="display windows" value={cfg.cutoutDisplay} onChange={(v) => patch({ cutoutDisplay: v })} />
+          <ToggleRow label="indicator openings" value={cfg.cutoutIndicators} onChange={(v) => patch({ cutoutIndicators: v })} />
+        </div>
+
+        <SectionTitle className="mt-6">visibility</SectionTitle>
+        <div className="space-y-1.5">
+          <ToggleRow label="show pcb" value={cfg.showPcb} onChange={(v) => patch({ showPcb: v })} />
+          <ToggleRow label="show enclosure" value={cfg.showCase} onChange={(v) => patch({ showCase: v })} />
+          <ToggleRow label="show internals (x-ray)" value={cfg.showInternals} onChange={(v) => patch({ showInternals: v })} />
+        </div>
+      </aside>
+
+      <div className="flex-1 overflow-auto p-10">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">case preview · {cfg.view}</div>
+            <ViewToggle value={cfg.view} onChange={(v) => patch({ view: v })} />
+          </div>
+
+          <DevicePreview
+            mode={cfg.view}
+            stage="case"
+            rows={rows}
+            cols={cols}
+            regions={regions}
+            caseCfg={cfg}
+          />
+
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Stat label="outer size" value={`${outerW.toFixed(0)} × ${outerH.toFixed(0)} mm`} />
+            <Stat label="profile" value={`${cfg.frontHeight}/${cfg.rearHeight} mm`} />
+            <Stat label="style" value={cfg.style} />
+            <Stat label="mount" value={cfg.screw} />
+          </div>
+
+          <div className="mt-6 bg-card border border-border rounded-md p-4 analog-shadow-sm">
+            <SectionTitle>exports ready at end of stage</SectionTitle>
+            <ul className="font-mono text-[11px] lowercase text-stone-700 space-y-1">
+              <li>· enclosure.step</li>
+              <li>· enclosure-top.stl</li>
+              <li>· enclosure-bottom.stl</li>
+              <li>· plate.dxf</li>
+              <li>· assembly-bom.csv</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <aside className="w-64 border-l border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>collision checks</SectionTitle>
+        {validations.length === 0 ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 font-mono text-[11px] lowercase text-emerald-900">
+            no collisions detected. enclosure is ready.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {validations.map((v, i) => (
+              <li key={i} className={`rounded-md p-3 font-mono text-[11px] lowercase leading-relaxed border
+                ${v.level === "error" ? "bg-rose-50 border-rose-200 text-rose-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+                <span className="uppercase tracking-[0.18em] text-[9px] block mb-1 opacity-70">{v.level}</span>
+                {v.message}
+              </li>
+            ))}
+          </ul>
+        )}
+        <SectionTitle className="mt-6">summary</SectionTitle>
+        <div className="space-y-1.5 font-mono text-[11px] lowercase text-stone-700">
+          <SummaryRow k="style" v={cfg.style} />
+          <SummaryRow k="walls" v={`${cfg.wallThickness}mm`} />
+          <SummaryRow k="angle" v={`${cfg.typingAngle}°`} />
+          <SummaryRow k="screws" v={cfg.screw} />
+          <SummaryRow k="cutouts" v={[cfg.cutoutUsb && "usb", cfg.cutoutReset && "reset", cfg.cutoutDisplay && "display", cfg.cutoutIndicators && "led"].filter(Boolean).join(", ") || "none"} />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// ============================================================
+// flow five: keys & knobs
+// ============================================================
+
+type KeyProfile = "cherry" | "oem" | "dsa" | "xda" | "sa" | "mt3" | "choc";
+type LegendStyle = "blank" | "top" | "side" | "custom";
+type CapMaterial = "abs" | "pbt" | "resin";
+type KnobStyle = "smooth" | "ribbed" | "fluted" | "synth" | "industrial" | "low profile";
+type IndicatorStyle = "line" | "dot" | "none";
+type PreviewLayer = "wireframe" | "pcb" | "enclosure" | "finished" | "exploded";
+
+type CapsConfig = {
+  profile: KeyProfile;
+  legend: LegendStyle;
+  customLegends: Record<string, string>; // regionId -> text
+  material: CapMaterial;
+  capColor: string;
+  legendColor: string;
+  knobStyle: KnobStyle;
+  knobDiameter: number;   // mm
+  knobHeight: number;     // mm
+  indicator: IndicatorStyle;
+  layer: PreviewLayer;
+  view: ViewMode;
+};
+
+function defaultCaps(): CapsConfig {
+  return {
+    profile: "cherry",
+    legend: "top",
+    customLegends: {},
+    material: "pbt",
+    capColor: "#e9e4d8",
+    legendColor: "#1c1c1c",
+    knobStyle: "ribbed",
+    knobDiameter: 20,
+    knobHeight: 14,
+    indicator: "line",
+    layer: "finished",
+    view: "3d",
+  };
+}
+
+const CAP_PRESETS = ["#e9e4d8", "#1c1c1c", "#c94f4f", "#3a6ea5", "#e8b84a", "#5f8a5a", "#8a5fb4"];
+const KNOB_STYLES: KnobStyle[] = ["smooth", "ribbed", "fluted", "synth", "industrial", "low profile"];
+
+function CapsWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
+  const [cfg, setCfg] = useState<CapsConfig>(() => defaultCaps());
+  const [caseCfg] = useState<CaseConfig>(() => defaultCase());
+  function patch(p: Partial<CapsConfig>) { setCfg((c) => ({ ...c, ...p })); }
+
+  const keys = regions.filter((r) => r.type === "key");
+  const knobs = regions.filter((r) => r.type === "encoder" || r.type === "knob");
+
+  return (
+    <div className="flex-1 flex bg-editor-canvas">
+      <aside className="w-72 border-r border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>keycap profile</SectionTitle>
+        <div className="grid grid-cols-3 gap-2">
+          {(["cherry", "oem", "dsa", "xda", "sa", "mt3", "choc"] as KeyProfile[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => patch({ profile: p })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-2 rounded-md border
+                ${cfg.profile === p ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <SectionTitle className="mt-6">material</SectionTitle>
+        <div className="grid grid-cols-3 gap-2">
+          {(["abs", "pbt", "resin"] as CapMaterial[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => patch({ material: m })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-2 rounded-md border
+                ${cfg.material === m ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        <SectionTitle className="mt-6">cap color</SectionTitle>
+        <div className="flex flex-wrap gap-2">
+          {CAP_PRESETS.map((c) => (
+            <button
+              key={c}
+              onClick={() => patch({ capColor: c })}
+              className={`size-7 rounded border ${cfg.capColor === c ? "ring-2 ring-stone-900 ring-offset-1" : "border-stone-300"}`}
+              style={{ background: c }}
+              title={c}
+            />
+          ))}
+          <input type="color" value={cfg.capColor} onChange={(e) => patch({ capColor: e.target.value })} className="size-7 rounded border border-stone-300" />
+        </div>
+
+        <SectionTitle className="mt-4">legend</SectionTitle>
+        <div className="grid grid-cols-2 gap-2">
+          {(["blank", "top", "side", "custom"] as LegendStyle[]).map((l) => (
+            <button
+              key={l}
+              onClick={() => patch({ legend: l })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-2 rounded-md border
+                ${cfg.legend === l ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">legend color</span>
+          <input type="color" value={cfg.legendColor} onChange={(e) => patch({ legendColor: e.target.value })} className="size-6 rounded border border-stone-300" />
+        </div>
+
+        <SectionTitle className="mt-6">knob style</SectionTitle>
+        <div className="grid grid-cols-2 gap-2">
+          {KNOB_STYLES.map((s) => (
+            <button
+              key={s}
+              onClick={() => patch({ knobStyle: s })}
+              className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2 py-2 rounded-md border text-left
+                ${cfg.knobStyle === s ? "bg-stone-900 text-stone-50 border-stone-900" : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 space-y-3">
+          <RangeField label="knob diameter" suffix="mm" min={10} max={40} value={cfg.knobDiameter} onChange={(v) => patch({ knobDiameter: v })} />
+          <RangeField label="knob height" suffix="mm" min={6} max={30} value={cfg.knobHeight} onChange={(v) => patch({ knobHeight: v })} />
+          <SelectField label="indicator line" value={cfg.indicator} options={["line", "dot", "none"]} onChange={(v) => patch({ indicator: v as IndicatorStyle })} />
+        </div>
+      </aside>
+
+      <div className="flex-1 overflow-auto p-10">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">device preview · {cfg.layer}</div>
+            <div className="flex items-center gap-2">
+              <LayerToggle value={cfg.layer} onChange={(l) => patch({ layer: l })} />
+              <ViewToggle value={cfg.view} onChange={(v) => patch({ view: v })} />
+            </div>
+          </div>
+
+          <DevicePreview
+            mode={cfg.view}
+            stage="caps"
+            layer={cfg.layer}
+            rows={rows}
+            cols={cols}
+            regions={regions}
+            caseCfg={caseCfg}
+            capsCfg={cfg}
+          />
+
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Stat label="keys" value={keys.length} />
+            <Stat label="knobs" value={knobs.length} />
+            <Stat label="profile" value={cfg.profile} />
+            <Stat label="material" value={cfg.material} />
+          </div>
+        </div>
+      </div>
+
+      <aside className="w-64 border-l border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>finish summary</SectionTitle>
+        <div className="space-y-1.5 font-mono text-[11px] lowercase text-stone-700">
+          <SummaryRow k="profile" v={cfg.profile} />
+          <SummaryRow k="material" v={cfg.material} />
+          <SummaryRow k="legend" v={cfg.legend} />
+          <SummaryRow k="cap color" v={cfg.capColor} />
+          <SummaryRow k="knob" v={`${cfg.knobStyle} · ${cfg.knobDiameter}mm`} />
+          <SummaryRow k="indicator" v={cfg.indicator} />
+        </div>
+
+        <SectionTitle className="mt-6">tactile notes</SectionTitle>
+        <p className="font-mono text-[11px] lowercase text-stone-600 leading-relaxed">
+          {cfg.material === "pbt" && "pbt resists shine, matte texture, slightly harder feel."}
+          {cfg.material === "abs" && "abs is smoother, develops shine over time, crisper sound."}
+          {cfg.material === "resin" && "resin gives custom shapes and translucency, often heavier."}
+        </p>
+      </aside>
+    </div>
+  );
+}
+
+// ============================================================
+// shared preview engine
+// ============================================================
+
+function DevicePreview({
+  mode, stage, layer = "finished", rows, cols, regions, caseCfg, capsCfg,
+}: {
+  mode: ViewMode;
+  stage: "case" | "caps";
+  layer?: PreviewLayer;
+  rows: number;
+  cols: number;
+  regions: Region[];
+  caseCfg: CaseConfig;
+  capsCfg?: CapsConfig;
+}) {
+  const unit = 22; // px per 1u
+  const padding = (caseCfg.pcbMargin + caseCfg.wallThickness) * 2;
+  const pcbW = cols * unit;
+  const pcbH = rows * unit;
+  const wall = caseCfg.wallThickness * 2;
+  const pcbMargin = caseCfg.pcbMargin * 2;
+  const outerW = pcbW + (pcbMargin + wall) * 2;
+  const outerH = pcbH + (pcbMargin + wall) * 2;
+
+  const showPcb = (stage === "case" ? caseCfg.showPcb : layer !== "enclosure") && layer !== "wireframe";
+  const showCase = stage === "case" ? caseCfg.showCase : layer !== "pcb";
+  const showInternals = stage === "case" ? caseCfg.showInternals : layer === "exploded";
+  const showCaps = stage === "caps" && (layer === "finished" || layer === "exploded");
+  const wireframe = layer === "wireframe";
+  const exploded = layer === "exploded";
+
+  const transform = mode === "3d"
+    ? `perspective(1400px) rotateX(${24 + caseCfg.typingAngle * 0.6}deg) rotateZ(-2deg)`
+    : "none";
+
+  return (
+    <div className="relative bg-stone-100 border border-border rounded-md p-10 overflow-hidden" style={{ minHeight: 420 }}>
+      {/* grid background */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none"
+        style={{
+          backgroundImage: "linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px)",
+          backgroundSize: "22px 22px",
+        }}
+      />
+      <div className="relative flex items-center justify-center" style={{ minHeight: 340 }}>
+        <div
+          style={{
+            width: outerW,
+            height: outerH,
+            transform,
+            transformStyle: "preserve-3d",
+            transition: "transform 250ms ease",
+          }}
+          className="relative"
+        >
+          {/* case base */}
+          {showCase && (
+            <div
+              className={`absolute inset-0 rounded-md ${wireframe ? "bg-transparent border-2 border-dashed border-stone-500" : "bg-stone-200 border border-stone-400"}`}
+              style={{
+                boxShadow: wireframe ? "none" : "0 12px 28px -10px rgba(0,0,0,0.35), inset 0 -3px 0 rgba(0,0,0,0.08)",
+              }}
+            />
+          )}
+          {/* wall ring (inner cavity outline) */}
+          {showCase && (
+            <div
+              className="absolute rounded-sm border border-stone-400/60"
+              style={{
+                top: wall, left: wall, right: wall, bottom: wall,
+                background: wireframe ? "transparent" : "rgba(255,255,255,0.35)",
+              }}
+            />
+          )}
+          {/* pcb */}
+          {showPcb && (
+            <div
+              className="absolute rounded-sm"
+              style={{
+                top: wall + pcbMargin,
+                left: wall + pcbMargin,
+                width: pcbW,
+                height: pcbH,
+                background: wireframe ? "transparent" : "#0d4f2a",
+                border: wireframe ? "1px dashed #555" : "1px solid #08321b",
+                transform: exploded ? "translateZ(-12px)" : "none",
+                boxShadow: wireframe ? "none" : "inset 0 0 0 2px rgba(255,255,255,0.06)",
+              }}
+            >
+              {/* mounting holes (corners) */}
+              {[[0,0],[1,0],[0,1],[1,1]].map(([cx,cy], i) => (
+                <div key={i}
+                  className="absolute rounded-full border"
+                  style={{
+                    width: 6, height: 6,
+                    top: cy ? pcbH - 10 : 4,
+                    left: cx ? pcbW - 10 : 4,
+                    background: wireframe ? "transparent" : "#1a1a1a",
+                    borderColor: "#888",
+                  }}
+                />
+              ))}
+              {/* components */}
+              {regions.map((r) => (
+                <RegionGlyph key={r.id} r={r} unit={unit} wireframe={wireframe}
+                  showCaps={!!showCaps} caps={capsCfg} />
+              ))}
+              {/* usb tab */}
+              <div
+                className="absolute bg-stone-300 rounded-sm border border-stone-400"
+                style={usbStyle(pcbW, pcbH)}
+              >
+                <div className="size-full opacity-70" />
+              </div>
+            </div>
+          )}
+          {/* x-ray internals */}
+          {showInternals && showCase && (
+            <>
+              {[[0,0],[1,0],[0,1],[1,1]].map(([cx,cy], i) => (
+                <div key={`pillar-${i}`} className="absolute rounded-full border border-dashed border-stone-500/70 bg-amber-100/40"
+                  style={{
+                    width: 12, height: 12,
+                    top: cy ? outerH - wall - 14 : wall + 2,
+                    left: cx ? outerW - wall - 14 : wall + 2,
+                  }}
+                />
+              ))}
+            </>
+          )}
+          {/* cutout labels */}
+          {showCase && caseCfg.cutoutUsb && (
+            <div className="absolute font-mono text-[8px] uppercase tracking-[0.2em] text-stone-500"
+              style={{ top: -14, left: outerW / 2 - 18 }}>
+              usb
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute bottom-3 left-4 font-mono text-[9px] uppercase tracking-[0.2em] text-stone-500">
+        {stage === "case" ? "pcb + enclosure" : layer === "wireframe" ? "wireframe" : layer === "pcb" ? "pcb only" : layer === "enclosure" ? "enclosure only" : layer === "exploded" ? "exploded" : "pcb + enclosure + caps + knobs"}
+      </div>
+      <div className="absolute bottom-3 right-4 font-mono text-[9px] uppercase tracking-[0.2em] text-stone-500">
+        {mode === "3d" ? "press 2d for flat plan view" : "press 3d for perspective"}
+      </div>
+    </div>
+  );
+}
+
+function usbStyle(pcbW: number, pcbH: number): React.CSSProperties {
+  // simple top edge tab
+  return { top: -4, left: pcbW / 2 - 12, width: 24, height: 8 };
+}
+
+function RegionGlyph({
+  r, unit, wireframe, showCaps, caps,
+}: {
+  r: Region;
+  unit: number;
+  wireframe: boolean;
+  showCaps: boolean;
+  caps?: CapsConfig;
+}) {
+  const x = r.x * unit;
+  const y = r.y * unit;
+  const w = r.w * unit;
+  const h = r.h * unit;
+
+  if (r.type === "key") {
+    const capColor = showCaps && caps ? caps.capColor : "#1a1a1a";
+    const profileLift = showCaps && caps?.profile === "sa" ? 6 : showCaps && caps?.profile === "mt3" ? 5 : showCaps ? 3 : 0;
+    return (
+      <div className="absolute" style={{ left: x + 2, top: y + 2, width: w - 4, height: h - 4 }}>
+        {/* switch base */}
+        <div className={`absolute inset-1 rounded-sm ${wireframe ? "border border-dashed border-stone-300" : "bg-stone-800 border border-stone-700"}`} />
+        {/* keycap on top */}
+        {showCaps && !wireframe && (
+          <div
+            className="absolute rounded-[3px] border"
+            style={{
+              inset: 2,
+              background: capColor,
+              borderColor: "rgba(0,0,0,0.25)",
+              boxShadow: `0 ${profileLift}px 0 rgba(0,0,0,0.18), inset 0 -2px 0 rgba(0,0,0,0.12)`,
+              transform: `translateZ(${profileLift * 2}px)`,
+            }}
+          >
+            {caps?.legend !== "blank" && (
+              <span className="absolute inset-0 flex items-center justify-center font-mono text-[9px]"
+                style={{ color: caps?.legendColor ?? "#222" }}>
+                {caps?.customLegends?.[r.id] ?? ""}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (r.type === "encoder" || r.type === "knob") {
+    const d = Math.min(w, h) - 4;
+    const knobD = showCaps && caps ? Math.min(d, caps.knobDiameter) : d - 6;
+    const ribbed = caps?.knobStyle === "ribbed" || caps?.knobStyle === "fluted" || caps?.knobStyle === "industrial";
+    return (
+      <div className="absolute" style={{ left: x + (w - d) / 2, top: y + (h - d) / 2, width: d, height: d }}>
+        <div className={`absolute inset-0 rounded-full ${wireframe ? "border border-dashed border-stone-300" : "bg-stone-700 border border-stone-800"}`} />
+        {showCaps && !wireframe && (
+          <div
+            className="absolute rounded-full"
+            style={{
+              left: (d - knobD) / 2, top: (d - knobD) / 2, width: knobD, height: knobD,
+              background: caps?.capColor ?? "#bbb",
+              border: "1px solid rgba(0,0,0,0.3)",
+              boxShadow: `0 ${caps?.knobHeight ? caps.knobHeight / 3 : 3}px 0 rgba(0,0,0,0.25), inset 0 -3px 0 rgba(0,0,0,0.15)`,
+              backgroundImage: ribbed
+                ? "repeating-conic-gradient(from 0deg, rgba(0,0,0,0.18) 0deg 6deg, transparent 6deg 12deg)"
+                : "none",
+            }}
+          >
+            {caps?.indicator !== "none" && (
+              <div
+                className="absolute bg-stone-900"
+                style={
+                  caps?.indicator === "dot"
+                    ? { width: 4, height: 4, borderRadius: 9999, top: 4, left: knobD / 2 - 2 }
+                    : { width: 2, height: knobD / 2 - 2, top: 2, left: knobD / 2 - 1 }
+                }
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (r.type === "oled" || r.type === "eink") {
+    return (
+      <div className="absolute" style={{ left: x + 2, top: y + 2, width: w - 4, height: h - 4 }}>
+        <div className={`absolute inset-1 rounded-sm ${wireframe ? "border border-dashed border-stone-300" : "bg-stone-900 border border-stone-700"}`}>
+          {!wireframe && (
+            <div className="absolute inset-1 rounded-[2px]"
+              style={{
+                background: r.type === "oled"
+                  ? "linear-gradient(180deg, #1ec0ff 0%, #0a3a55 100%)"
+                  : "linear-gradient(180deg, #f5f0e0 0%, #c2bca8 100%)",
+              }} />
+          )}
+        </div>
+      </div>
+    );
+  }
+  // misc
+  return (
+    <div className="absolute" style={{ left: x + 4, top: y + 4, width: w - 8, height: h - 8 }}>
+      <div className={`absolute inset-0 rounded-sm ${wireframe ? "border border-dashed border-stone-300" : "bg-stone-700/60 border border-stone-700"}`} />
+    </div>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="inline-flex rounded-md border border-border bg-card overflow-hidden">
+      {(["2d", "3d"] as ViewMode[]).map((v) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          className={`font-mono text-[10px] uppercase tracking-[0.18em] px-3 py-1.5
+            ${value === v ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LayerToggle({ value, onChange }: { value: PreviewLayer; onChange: (v: PreviewLayer) => void }) {
+  const layers: PreviewLayer[] = ["wireframe", "pcb", "enclosure", "finished", "exploded"];
+  return (
+    <div className="inline-flex rounded-md border border-border bg-card overflow-hidden">
+      {layers.map((l) => (
+        <button
+          key={l}
+          onClick={() => onChange(l)}
+          className={`font-mono text-[10px] uppercase tracking-[0.16em] px-2.5 py-1.5
+            ${value === l ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between gap-2 cursor-pointer">
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-stone-700">{label}</span>
+      <button
+        onClick={() => onChange(!value)}
+        type="button"
+        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${value ? "bg-stone-900" : "bg-stone-300"}`}
+      >
+        <span className={`inline-block size-3 transform rounded-full bg-white transition-transform ${value ? "translate-x-3.5" : "translate-x-0.5"}`} />
+      </button>
+    </label>
   );
 }
