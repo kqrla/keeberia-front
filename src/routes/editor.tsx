@@ -1554,13 +1554,14 @@ function defaultPcb(): PcbConfig {
 }
 
 function PcbWorkspace({
-  rows, cols, regions,
+  rows, cols, regions, cfg, setCfg,
 }: {
   rows: number;
   cols: number;
   regions: Region[];
+  cfg: PcbConfig;
+  setCfg: React.Dispatch<React.SetStateAction<PcbConfig>>;
 }) {
-  const [cfg, setCfg] = useState<PcbConfig>(() => defaultPcb());
   const [activeSide, setActiveSide] = useState<SilkSide>("front");
 
   function patch(p: Partial<PcbConfig>) {
