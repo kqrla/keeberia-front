@@ -151,14 +151,20 @@ const ICONS: Record<CompTypeLite, React.ComponentType<{ size?: number; className
 type LeftTab = "tree" | "templates" | "library";
 
 export function LeftSidebar({
-  regions, lens, setLens, onApplyTemplate,
+  regions, lens, setLens, onApplyTemplate, health, tips,
 }: {
   regions: RegionLite[];
   lens: Lens;
   setLens: (l: Lens) => void;
   onApplyTemplate: (t: ProjectTemplate) => void;
+  health: ProjectHealthInput;
+  tips: string[];
 }) {
   const [openTab, setOpenTab] = useState<LeftTab | null>(null);
+  // each floating modal tracks its own open state + position so the
+  // user can keep, say, readiness pinned while opening tips.
+  const [readinessOpen, setReadinessOpen] = useState(false);
+  const [tipsOpen, setTipsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // close the flyout when the user clicks outside of either the rail or panel.
@@ -189,12 +195,33 @@ export function LeftSidebar({
     </button>
   );
 
+  const floatBtn = (
+    active: boolean,
+    onClick: () => void,
+    Icon: React.ComponentType<{ size?: number; className?: string }>,
+    label: string,
+  ) => (
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`size-10 inline-flex items-center justify-center rounded-md transition-colors
+        ${active ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+    >
+      <Icon size={16} />
+    </button>
+  );
+
   return (
     <div ref={containerRef} className="relative shrink-0 z-30">
       <div className="w-12 h-full border-r border-border bg-sidebar flex flex-col items-center py-2 gap-1">
         {railBtn("tree", Layers, "tree")}
         {railBtn("templates", FolderOpen, "templates")}
         {railBtn("library", Boxes, "library")}
+        {/* spacer pushes readiness + tips to the bottom of the rail. */}
+        <div className="flex-1" />
+        {floatBtn(readinessOpen, () => setReadinessOpen((v) => !v), Gauge, "manufacturing readiness")}
+        {floatBtn(tipsOpen, () => setTipsOpen((v) => !v), Info, "tips")}
       </div>
       {openTab && (
         <aside
@@ -217,6 +244,12 @@ export function LeftSidebar({
             {openTab === "library" && <ComponentLibrary />}
           </div>
         </aside>
+      )}
+      {readinessOpen && (
+        <ReadinessModal health={health} onClose={() => setReadinessOpen(false)} />
+      )}
+      {tipsOpen && (
+        <TipsModal tips={tips} lens={lens} onClose={() => setTipsOpen(false)} />
       )}
     </div>
   );
