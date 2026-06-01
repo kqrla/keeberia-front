@@ -191,6 +191,10 @@ function EditorPage() {
           />
         ) : stage === "pcb" ? (
           <PcbWorkspace rows={rows} cols={cols} regions={regions} />
+        ) : stage === "case" ? (
+          <CaseWorkspace rows={rows} cols={cols} regions={regions} />
+        ) : stage === "caps" ? (
+          <CapsWorkspace rows={rows} cols={cols} regions={regions} />
         ) : (
           <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
         )}
