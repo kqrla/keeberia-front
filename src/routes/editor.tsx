@@ -7,6 +7,7 @@ import {
   Check,
 } from "lucide-react";
 import { Comp2D, type CompType } from "../components/keeberia/Comp2D";
+import { LeftSidebar, RightSidebar, type ProjectTemplate } from "../components/keeberia/EditorPanels";
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
@@ -134,6 +135,10 @@ function regionAt(regions: Region[], x: number, y: number): Region | undefined {
 }
 
 // ---------- page ----------
+// the editor is a unified workspace. lenses (layout, components,
+// pcb, case, caps) are different views into the same project model;
+// state is hoisted here so configs and selections survive lens
+// switches, and the side panels read the same source of truth.
 function EditorPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState(4);
@@ -142,6 +147,11 @@ function EditorPage() {
   const [projectName, setProjectName] = useState("untitled macropad");
   const [stage, setStage] = useState<Stage>("layout");
   const [ready, setReady] = useState(false);
+
+  // hoisted configs so switching lenses never resets work the user has done.
+  const [pcbCfg, setPcbCfg] = useState<PcbConfig>(() => defaultPcb());
+  const [caseCfg, setCaseCfg] = useState<CaseConfig>(() => defaultCase());
+  const [capsCfg, setCapsCfg] = useState<CapsConfig>(() => defaultCaps());
 
   useEffect(() => {
     const raw = typeof window !== "undefined" ? sessionStorage.getItem("keeberia.init") : null;
@@ -161,6 +171,34 @@ function EditorPage() {
   const next = () => stageIdx < STAGES.length - 1 && setStage(STAGES[stageIdx + 1]);
   const prev = () => stageIdx > 0 && setStage(STAGES[stageIdx - 1]);
 
+  function applyTemplate(t: ProjectTemplate) {
+    setRows(t.rows);
+    setCols(t.cols);
+    setRegions(t.regions.map((r) => ({ ...r, id: uid() })));
+    setProjectName(t.name);
+  }
+
+  // health inputs derived from the live project model.
+  const pcbValidations = useMemo(
+    () => validatePcb(pcbCfg, regions, rows, cols),
+    [pcbCfg, regions, rows, cols],
+  );
+  const caseValidations = useMemo(
+    () => validateCase(caseCfg, regions, rows, cols),
+    [caseCfg, regions, rows, cols],
+  );
+
+  const healthInput = {
+    rows, cols,
+    regions: regions.map((r) => ({ id: r.id, type: r.type, x: r.x, y: r.y, w: r.w, h: r.h, spec: r.spec })),
+    pcbValid: pcbValidations.every((v) => v.level !== "error"),
+    pcbWarnings: pcbValidations.filter((v) => v.level === "warn").length,
+    caseWarnings: caseValidations.filter((v) => v.level === "warn").length,
+    caseErrors: caseValidations.filter((v) => v.level === "error").length,
+    hasUsbCutout: caseCfg.cutoutUsb,
+    capsConfigured: regions.some((r) => r.type === "key"),
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <EditorHeader
@@ -172,33 +210,42 @@ function EditorPage() {
         onNext={next}
         onPrev={prev}
       />
-      <main className="flex-1 flex">
-        {stage === "layout" ? (
-          <EditorWorkspace
-            rows={rows}
-            cols={cols}
-            setRows={setRows}
-            setCols={setCols}
-            regions={regions}
-            setRegions={setRegions}
-          />
-        ) : stage === "components" ? (
-          <ComponentsWorkspace
-            rows={rows}
-            cols={cols}
-            regions={regions}
-            setRegions={setRegions}
-          />
-        ) : stage === "pcb" ? (
-          <PcbWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : stage === "case" ? (
-          <CaseWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : stage === "caps" ? (
-          <CapsWorkspace rows={rows} cols={cols} regions={regions} />
-        ) : (
-          <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
-        )}
-      </main>
+      <div className="flex-1 flex min-h-0">
+        <LeftSidebar
+          regions={regions}
+          lens={stage}
+          setLens={setStage}
+          onApplyTemplate={applyTemplate}
+        />
+        <main className="flex-1 flex min-w-0">
+          {stage === "layout" ? (
+            <EditorWorkspace
+              rows={rows}
+              cols={cols}
+              setRows={setRows}
+              setCols={setCols}
+              regions={regions}
+              setRegions={setRegions}
+            />
+          ) : stage === "components" ? (
+            <ComponentsWorkspace
+              rows={rows}
+              cols={cols}
+              regions={regions}
+              setRegions={setRegions}
+            />
+          ) : stage === "pcb" ? (
+            <PcbWorkspace rows={rows} cols={cols} regions={regions} cfg={pcbCfg} setCfg={setPcbCfg} />
+          ) : stage === "case" ? (
+            <CaseWorkspace rows={rows} cols={cols} regions={regions} cfg={caseCfg} setCfg={setCaseCfg} />
+          ) : stage === "caps" ? (
+            <CapsWorkspace rows={rows} cols={cols} regions={regions} cfg={capsCfg} setCfg={setCapsCfg} caseCfg={caseCfg} />
+          ) : (
+            <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
+          )}
+        </main>
+        <RightSidebar health={healthInput} />
+      </div>
     </div>
   );
 }
@@ -1507,13 +1554,14 @@ function defaultPcb(): PcbConfig {
 }
 
 function PcbWorkspace({
-  rows, cols, regions,
+  rows, cols, regions, cfg, setCfg,
 }: {
   rows: number;
   cols: number;
   regions: Region[];
+  cfg: PcbConfig;
+  setCfg: React.Dispatch<React.SetStateAction<PcbConfig>>;
 }) {
-  const [cfg, setCfg] = useState<PcbConfig>(() => defaultPcb());
   const [activeSide, setActiveSide] = useState<SilkSide>("front");
 
   function patch(p: Partial<PcbConfig>) {
@@ -2098,8 +2146,12 @@ function validateCase(cfg: CaseConfig, regions: Region[], rows: number, cols: nu
   return out;
 }
 
-function CaseWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
-  const [cfg, setCfg] = useState<CaseConfig>(() => defaultCase());
+function CaseWorkspace({
+  rows, cols, regions, cfg, setCfg,
+}: {
+  rows: number; cols: number; regions: Region[];
+  cfg: CaseConfig; setCfg: React.Dispatch<React.SetStateAction<CaseConfig>>;
+}) {
   function patch(p: Partial<CaseConfig>) { setCfg((c) => ({ ...c, ...p })); }
   const validations = useMemo(() => validateCase(cfg, regions, rows, cols), [cfg, regions, rows, cols]);
 
@@ -2275,9 +2327,13 @@ function defaultCaps(): CapsConfig {
 const CAP_PRESETS = ["#e9e4d8", "#1c1c1c", "#c94f4f", "#3a6ea5", "#e8b84a", "#5f8a5a", "#8a5fb4"];
 const KNOB_STYLES: KnobStyle[] = ["smooth", "ribbed", "fluted", "synth", "industrial", "low profile"];
 
-function CapsWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
-  const [cfg, setCfg] = useState<CapsConfig>(() => defaultCaps());
-  const [caseCfg] = useState<CaseConfig>(() => defaultCase());
+function CapsWorkspace({
+  rows, cols, regions, cfg, setCfg, caseCfg,
+}: {
+  rows: number; cols: number; regions: Region[];
+  cfg: CapsConfig; setCfg: React.Dispatch<React.SetStateAction<CapsConfig>>;
+  caseCfg: CaseConfig;
+}) {
   function patch(p: Partial<CapsConfig>) { setCfg((c) => ({ ...c, ...p })); }
 
   const keys = regions.filter((r) => r.type === "key");
