@@ -50,14 +50,20 @@ type SpecField = { key: string; label: string; options: string[] };
 
 const SPECS: Record<CompType, SpecField[]> = {
   key: [
-    { key: "switch", label: "switch", options: ["cherry mx brown", "cherry mx red", "cherry mx blue", "gateron yellow", "kailh choc brown v1", "kailh box white", "boba u4t silent"] },
+    { key: "switch", label: "switch", options: ["cherry mx brown", "cherry mx red", "cherry mx blue", "gateron yellow", "kailh choc brown v1", "kailh choc v2", "kailh box white", "boba u4t silent", "gateron low profile"] },
+    { key: "mount", label: "mounting", options: ["hotswap", "soldered"] },
+    { key: "stab", label: "stabilizer", options: ["none", "plate-mount", "pcb-mount screw-in", "pcb-mount snap-in"] },
+    { key: "rgb", label: "rgb", options: ["none", "per-key (sk6812)", "underglow", "side leds"] },
     { key: "cap", label: "keycap", options: ["cherry profile", "oem profile", "xda profile", "mt3 profile", "choc profile"] },
     { key: "size", label: "size", options: ["1u", "1.25u", "1.5u", "1.75u", "2u", "2.25u"] },
   ],
   encoder: [
     { key: "model", label: "model", options: ["ec11 · 15mm shaft", "ec11 · 20mm shaft", "ec12 low-profile", "evqwgd001 scroll"] },
+    { key: "shaft", label: "shaft diameter", options: ["6mm knurled", "6mm flatted", "4mm low-profile"] },
+    { key: "mount", label: "mounting", options: ["through-hole", "surface mount", "panel mount"] },
     { key: "press", label: "with switch", options: ["yes", "no"] },
     { key: "detents", label: "detents", options: ["20", "24", "30", "smooth"] },
+    { key: "knobfit", label: "knob compatibility", options: ["d-shaft caps", "knurled caps", "press-fit caps", "any"] },
   ],
   knob: [
     { key: "cover", label: "cover", options: ["smooth aluminum", "knurled aluminum", "knurled brass", "delrin", "wood"] },
@@ -67,14 +73,19 @@ const SPECS: Record<CompType, SpecField[]> = {
   oled: [
     { key: "panel", label: "panel", options: ["ssd1306 · 128×32", "ssd1306 · 128×64", "sh1106 · 128×64", "sh1107 · 128×128"] },
     { key: "bus", label: "interface", options: ["i2c", "spi"] },
+    { key: "connector", label: "connector orientation", options: ["top", "bottom", "left", "right"] },
+    { key: "cutout", label: "cutout", options: ["window", "flush mount", "raised bezel"] },
     { key: "color", label: "pixel color", options: ["white", "blue", "yellow"] },
   ],
   eink: [
     { key: "panel", label: "panel", options: ["1.54\"", "2.13\"", "2.9\"", "4.2\""] },
+    { key: "connector", label: "connector orientation", options: ["top", "bottom", "left", "right"] },
+    { key: "cutout", label: "cutout", options: ["window", "flush mount", "raised bezel"] },
     { key: "color", label: "color", options: ["b/w", "b/w/red", "b/w/yellow"] },
   ],
   joystick: [
     { key: "model", label: "model", options: ["alps rkjxv", "psp analog", "hall-effect 3-axis"] },
+    { key: "mount", label: "mounting", options: ["through-hole", "surface mount"] },
     { key: "press", label: "click button", options: ["yes", "no"] },
   ],
   touch: [
