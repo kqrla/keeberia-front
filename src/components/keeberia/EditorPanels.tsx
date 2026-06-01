@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Square, Circle, Disc,
   Monitor, RectangleHorizontal, Gamepad2, Minus, Dot, X,
   CheckCircle2, AlertTriangle, Circle as CircleIcon,
-  Gauge, GripHorizontal,
+  Gauge, GripHorizontal, Info,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -151,14 +151,20 @@ const ICONS: Record<CompTypeLite, React.ComponentType<{ size?: number; className
 type LeftTab = "tree" | "templates" | "library";
 
 export function LeftSidebar({
-  regions, lens, setLens, onApplyTemplate,
+  regions, lens, setLens, onApplyTemplate, health, tips,
 }: {
   regions: RegionLite[];
   lens: Lens;
   setLens: (l: Lens) => void;
   onApplyTemplate: (t: ProjectTemplate) => void;
+  health: ProjectHealthInput;
+  tips: string[];
 }) {
   const [openTab, setOpenTab] = useState<LeftTab | null>(null);
+  // each floating modal tracks its own open state + position so the
+  // user can keep, say, readiness pinned while opening tips.
+  const [readinessOpen, setReadinessOpen] = useState(false);
+  const [tipsOpen, setTipsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // close the flyout when the user clicks outside of either the rail or panel.
@@ -189,12 +195,33 @@ export function LeftSidebar({
     </button>
   );
 
+  const floatBtn = (
+    active: boolean,
+    onClick: () => void,
+    Icon: React.ComponentType<{ size?: number; className?: string }>,
+    label: string,
+  ) => (
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`size-10 inline-flex items-center justify-center rounded-md transition-colors
+        ${active ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+    >
+      <Icon size={16} />
+    </button>
+  );
+
   return (
     <div ref={containerRef} className="relative shrink-0 z-30">
       <div className="w-12 h-full border-r border-border bg-sidebar flex flex-col items-center py-2 gap-1">
         {railBtn("tree", Layers, "tree")}
         {railBtn("templates", FolderOpen, "templates")}
         {railBtn("library", Boxes, "library")}
+        {/* spacer pushes readiness + tips to the bottom of the rail. */}
+        <div className="flex-1" />
+        {floatBtn(readinessOpen, () => setReadinessOpen((v) => !v), Gauge, "manufacturing readiness")}
+        {floatBtn(tipsOpen, () => setTipsOpen((v) => !v), Info, "tips")}
       </div>
       {openTab && (
         <aside
@@ -217,6 +244,12 @@ export function LeftSidebar({
             {openTab === "library" && <ComponentLibrary />}
           </div>
         </aside>
+      )}
+      {readinessOpen && (
+        <ReadinessModal health={health} onClose={() => setReadinessOpen(false)} />
+      )}
+      {tipsOpen && (
+        <TipsModal tips={tips} lens={lens} onClose={() => setTipsOpen(false)} />
       )}
     </div>
   );
@@ -383,52 +416,31 @@ function ComponentLibrary() {
 }
 
 // ============================================================
-// readiness floating modal
+// floating draggable modal (shared)
 // ============================================================
-// the readiness panel is no longer a permanent sidebar. it floats as
-// a draggable card so the preview can use the full canvas, and the
-// user only sees it when they explicitly open it from the trigger.
-export function ReadinessFloating({ health }: { health: ProjectHealthInput }) {
-  const [open, setOpen] = useState(false);
-  // default position: roughly top-right of the viewport.
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
-    if (typeof window === "undefined") return { x: 100, y: 100 };
-    return { x: Math.max(20, window.innerWidth - 360), y: 120 };
-  });
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        title="manufacturing readiness"
-        aria-label="manufacturing readiness"
-        className="fixed top-24 right-5 z-40 size-11 rounded-full bg-stone-900 text-stone-50 shadow-lg hover:bg-stone-800 inline-flex items-center justify-center"
-      >
-        <Gauge size={18} />
-      </button>
-      {open && <ReadinessModal health={health} pos={pos} setPos={setPos} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-function ReadinessModal({
-  health, pos, setPos, onClose,
+// both readiness and tips render through a single draggable shell so
+// they feel like the same family of utility windows.
+function DraggableModal({
+  title, defaultOffsetRight, defaultTop, width, onClose, children,
 }: {
-  health: ProjectHealthInput;
-  pos: { x: number; y: number };
-  setPos: (p: { x: number; y: number }) => void;
+  title: string;
+  defaultOffsetRight: number;
+  defaultTop: number;
+  width: number;
   onClose: () => void;
+  children: React.ReactNode;
 }) {
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    if (typeof window === "undefined") return { x: 100, y: defaultTop };
+    return { x: Math.max(20, window.innerWidth - defaultOffsetRight), y: defaultTop };
+  });
   const dragState = useRef<{ dx: number; dy: number } | null>(null);
-  const checks = buildHealthChecks(health);
-  const score = readinessScore(checks);
-  const costs = estimateCost(health);
 
   function onDragStart(e: React.MouseEvent) {
     dragState.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
     const onMove = (ev: MouseEvent) => {
       if (!dragState.current) return;
-      const nx = Math.max(0, Math.min(window.innerWidth - 320, ev.clientX - dragState.current.dx));
+      const nx = Math.max(0, Math.min(window.innerWidth - width, ev.clientX - dragState.current.dx));
       const ny = Math.max(0, Math.min(window.innerHeight - 80, ev.clientY - dragState.current.dy));
       setPos({ x: nx, y: ny });
     };
@@ -443,8 +455,8 @@ function ReadinessModal({
 
   return (
     <div
-      className="fixed z-50 w-80 max-h-[80vh] bg-card border border-border rounded-md shadow-2xl flex flex-col"
-      style={{ left: pos.x, top: pos.y }}
+      className="fixed z-50 max-h-[80vh] bg-card border border-border rounded-md shadow-2xl flex flex-col"
+      style={{ left: pos.x, top: pos.y, width }}
     >
       <div
         onMouseDown={onDragStart}
@@ -452,7 +464,7 @@ function ReadinessModal({
       >
         <GripHorizontal size={14} className="text-stone-400" />
         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-600 flex-1">
-          manufacturing readiness
+          {title}
         </span>
         <button
           onMouseDown={(e) => e.stopPropagation()}
@@ -464,18 +476,64 @@ function ReadinessModal({
         </button>
       </div>
       <div className="overflow-y-auto">
-        <ReadinessHeader score={score} />
-        <div className="p-3 space-y-4">
-          <ProjectHealthPanel checks={checks} />
-          <CostPanel costs={costs} />
-        </div>
+        {children}
       </div>
     </div>
   );
 }
 
-// kept as a named export in case anything else imports it; aliased.
-export const RightSidebar = ReadinessFloating;
+function ReadinessModal({
+  health, onClose,
+}: {
+  health: ProjectHealthInput;
+  onClose: () => void;
+}) {
+  const checks = buildHealthChecks(health);
+  const score = readinessScore(checks);
+  const costs = estimateCost(health);
+  return (
+    <DraggableModal
+      title="manufacturing readiness"
+      defaultOffsetRight={340}
+      defaultTop={120}
+      width={320}
+      onClose={onClose}
+    >
+      <ReadinessHeader score={score} />
+      <div className="p-3 space-y-4">
+        <ProjectHealthPanel checks={checks} />
+        <CostPanel costs={costs} />
+      </div>
+    </DraggableModal>
+  );
+}
+
+function TipsModal({
+  tips, lens, onClose,
+}: {
+  tips: string[];
+  lens: Lens;
+  onClose: () => void;
+}) {
+  return (
+    <DraggableModal
+      title={`tips · ${lens}`}
+      defaultOffsetRight={320}
+      defaultTop={180}
+      width={280}
+      onClose={onClose}
+    >
+      <div className="p-4 space-y-1.5 font-mono text-[11px] lowercase text-stone-700 leading-relaxed">
+        {tips.length === 0 ? (
+          <p className="text-stone-500">no tips for this view yet.</p>
+        ) : (
+          tips.map((t, i) => <p key={i}>· {t}</p>)
+        )}
+      </div>
+    </DraggableModal>
+  );
+}
+
 
 type HealthCheck = {
   id: string;

@@ -7,7 +7,40 @@ import {
   Check,
 } from "lucide-react";
 import { Comp2D, type CompType } from "../components/keeberia/Comp2D";
-import { LeftSidebar, ReadinessFloating, type ProjectTemplate } from "../components/keeberia/EditorPanels";
+import { LeftSidebar, type ProjectTemplate } from "../components/keeberia/EditorPanels";
+
+// per-lens tip text. keeping these here (not in the panel module)
+// means each workspace owns its own help copy and the modal stays
+// generic.
+const TIPS_BY_LENS: Record<Stage, string[]> = {
+  layout: [
+    "drag across cells to multi-select",
+    "shift-click to add to selection",
+    "right-click a cell for switch, insert, delete",
+    "drag a row or column header to reorder",
+  ],
+  components: [
+    "click a cell to select",
+    "shift-click to multi-select",
+    "click a palette item to assign",
+    "filter view to focus on one type",
+  ],
+  pcb: [
+    "the pcb outline follows your layout automatically",
+    "warnings flag clearance and routing issues",
+    "switch traces and pad density live in the inspector",
+  ],
+  case: [
+    "case style changes how the pcb mounts",
+    "watch the clearance checks before exporting",
+    "usb and reset cutouts can be toggled here",
+  ],
+  caps: [
+    "switch view modes to preview the finished device",
+    "exploded view helps verify stack heights",
+    "keycap profile changes typing feel and overall height",
+  ],
+};
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
@@ -218,6 +251,8 @@ function EditorPage() {
           lens={stage}
           setLens={setStage}
           onApplyTemplate={applyTemplate}
+          health={healthInput}
+          tips={TIPS_BY_LENS[stage]}
         />
         <main className="flex-1 flex min-w-0 relative">
           {stage === "layout" ? (
@@ -247,7 +282,6 @@ function EditorPage() {
           )}
         </main>
       </div>
-      <ReadinessFloating health={healthInput} />
     </div>
   );
 }
@@ -597,18 +631,15 @@ function EditorWorkspace({
           </button>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-border font-mono text-[10px] text-muted-foreground leading-relaxed">
-          <div className="uppercase tracking-[0.22em] mb-2">tips</div>
-          <p>· drag across cells to multi-select</p>
-          <p>· shift-click to add to selection</p>
-          <p>· right-click a cell for switch, insert, delete</p>
-          <p>· drag a row/column header to reorder</p>
-        </div>
       </aside>
 
-      {/* canvas */}
-      <div className="flex-1 relative overflow-auto p-10" onClick={() => { clearSelection(); }}>
+      {/* canvas. cell size is measured from the available area so the
+          grid grows with the editor body and doesn't leave whitespace. */}
+      <CanvasFrame rows={rows} cols={cols} onClickEmpty={() => clearSelection()}>
+        {(cell) => (
+          <>
         <Canvas
+          cell={cell}
           rows={rows}
           cols={cols}
           regions={regions}
@@ -671,7 +702,9 @@ function EditorWorkspace({
             canMoveNext={canMoveCol(menu.colIndex, menu.colIndex + 2)}
           />
         )}
-      </div>
+          </>
+        )}
+      </CanvasFrame>
 
       {/* inspector */}
       <aside className="w-64 border-l border-border bg-sidebar p-4">
@@ -703,17 +736,68 @@ function EditorWorkspace({
 }
 
 // ---------- canvas ----------
-const CELL = 64;
+// the layout grid is sized to fill its container. CanvasFrame
+// measures the available area and tells Canvas how large each cell
+// should be — so adding rows or columns just shrinks cells until
+// they hit a sensible floor, instead of leaving large white margins.
+const DEFAULT_CELL = 64;
+const MIN_CELL = 32;
+const MAX_CELL = 140;
 const GAP = 8;
 const RIM = 22;
+const CANVAS_PADDING = 24; // inner padding of the canvas card
+const CANVAS_OUTER_PADDING = 40; // p-10 around the canvas card
+
+function CanvasFrame({
+  rows, cols, onClickEmpty, children,
+}: {
+  rows: number;
+  cols: number;
+  onClickEmpty: () => void;
+  children: (cell: number) => React.ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [cell, setCell] = useState(DEFAULT_CELL);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const compute = () => {
+      const w = el.clientWidth - CANVAS_OUTER_PADDING * 2;
+      const h = el.clientHeight - CANVAS_OUTER_PADDING * 2;
+      // the card itself consumes padding (CANVAS_PADDING*2) plus the
+      // rim that holds row/column headers (RIM*2) plus the gaps
+      // between cells.
+      const fitW = (w - CANVAS_PADDING * 2 - RIM * 2 - Math.max(0, cols - 1) * GAP) / Math.max(1, cols);
+      const fitH = (h - CANVAS_PADDING * 2 - RIM * 2 - Math.max(0, rows - 1) * GAP) / Math.max(1, rows);
+      const next = Math.max(MIN_CELL, Math.min(MAX_CELL, Math.floor(Math.min(fitW, fitH))));
+      setCell(next);
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows, cols]);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="flex-1 relative overflow-auto p-10 flex items-center justify-center"
+      onClick={onClickEmpty}
+    >
+      {children(cell)}
+    </div>
+  );
+}
 
 function Canvas({
-  rows, cols, regions, selected,
+  cell, rows, cols, regions, selected,
   onSelectRegion, onDragSelect, onRegionContext,
   onRowContext, onColContext,
   onInsertCol, onInsertRow, onDeleteCol, onDeleteRow,
   onMoveCol, onMoveRow, canMoveCol, canMoveRow,
 }: {
+  cell: number;
   rows: number; cols: number; regions: Region[]; selected: Set<string>;
   onSelectRegion: (id: string, e: React.MouseEvent) => void;
   onDragSelect: (ids: string[], additive: boolean) => void;
@@ -729,6 +813,7 @@ function Canvas({
   canMoveCol: (from: number, to: number) => boolean;
   canMoveRow: (from: number, to: number) => boolean;
 }) {
+  const CELL = cell;
   const totalW = cols * CELL + (cols - 1) * GAP;
   const totalH = rows * CELL + (rows - 1) * GAP;
 
@@ -949,6 +1034,7 @@ function Canvas({
           {regions.map((r) => (
             <CellTile
               key={r.id}
+              cell={CELL}
               region={r}
               selected={selected.has(r.id)}
               onClick={(e) => onSelectRegion(r.id, e)}
@@ -978,12 +1064,14 @@ function Canvas({
 }
 
 function CellTile({
-  region, selected, onClick, onContextMenu,
+  cell, region, selected, onClick, onContextMenu,
 }: {
+  cell: number;
   region: Region; selected: boolean;
   onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
+  const CELL = cell;
   const left = region.x * (CELL + GAP);
   const top = region.y * (CELL + GAP);
   const w = region.w * CELL + (region.w - 1) * GAP;
@@ -1461,13 +1549,6 @@ function ComponentsWorkspace({
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-border font-mono text-[10px] text-muted-foreground leading-relaxed">
-          <div className="uppercase tracking-[0.22em] mb-2">tips</div>
-          <p>· click a cell to select</p>
-          <p>· shift-click to multi-select</p>
-          <p>· click a palette item to assign</p>
-          <p>· filter view to focus on one type</p>
-        </div>
       </aside>
     </div>
   );
