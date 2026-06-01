@@ -7,7 +7,7 @@ import {
   Check,
 } from "lucide-react";
 import { Comp2D, type CompType } from "../components/keeberia/Comp2D";
-import { LeftSidebar, RightSidebar, type ProjectTemplate } from "../components/keeberia/EditorPanels";
+import { LeftSidebar, ReadinessFloating, type ProjectTemplate } from "../components/keeberia/EditorPanels";
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
@@ -219,7 +219,7 @@ function EditorPage() {
           setLens={setStage}
           onApplyTemplate={applyTemplate}
         />
-        <main className="flex-1 flex min-w-0">
+        <main className="flex-1 flex min-w-0 relative">
           {stage === "layout" ? (
             <EditorWorkspace
               rows={rows}
@@ -246,8 +246,8 @@ function EditorPage() {
             <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
           )}
         </main>
-        <RightSidebar health={healthInput} />
       </div>
+      <ReadinessFloating health={healthInput} />
     </div>
   );
 }

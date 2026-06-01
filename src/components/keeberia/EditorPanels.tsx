@@ -1,16 +1,20 @@
 // editor panels: project tree, templates, component library,
 // project health, readiness score, cost estimate.
 //
-// these panels exist so the editor feels like a single workspace
-// rather than a sequential set of stages. every panel reads the
-// same underlying project model (rows, cols, regions, configs).
+// layout shape:
+//   - left side is a narrow icon rail (tree / templates / library).
+//     clicking an icon opens a flyout panel overlaid on top of the
+//     workspace, so the main preview keeps its full width.
+//   - readiness lives in a floating draggable modal triggered from a
+//     menu icon. it stays closed until the user opens it.
 import {
   Layers, Boxes, FolderOpen, Activity, Coins,
   ChevronDown, ChevronRight, Square, Circle, Disc,
   Monitor, RectangleHorizontal, Gamepad2, Minus, Dot, X,
   CheckCircle2, AlertTriangle, Circle as CircleIcon,
+  Gauge, GripHorizontal,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // ---------- types (kept loose to avoid coupling) ----------
 export type CompTypeLite =
@@ -142,8 +146,10 @@ const ICONS: Record<CompTypeLite, React.ComponentType<{ size?: number; className
 };
 
 // ============================================================
-// left sidebar
+// left sidebar: icon rail + flyout
 // ============================================================
+type LeftTab = "tree" | "templates" | "library";
+
 export function LeftSidebar({
   regions, lens, setLens, onApplyTemplate,
 }: {
@@ -152,38 +158,67 @@ export function LeftSidebar({
   setLens: (l: Lens) => void;
   onApplyTemplate: (t: ProjectTemplate) => void;
 }) {
-  const [tab, setTab] = useState<"tree" | "templates" | "library">("tree");
-  return (
-    <aside className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col">
-      <div className="flex border-b border-border">
-        <TabBtn active={tab === "tree"} onClick={() => setTab("tree")} icon={Layers}>tree</TabBtn>
-        <TabBtn active={tab === "templates"} onClick={() => setTab("templates")} icon={FolderOpen}>templates</TabBtn>
-        <TabBtn active={tab === "library"} onClick={() => setTab("library")} icon={Boxes}>library</TabBtn>
-      </div>
-      <div className="flex-1 overflow-y-auto p-3">
-        {tab === "tree" && <ProjectTree regions={regions} lens={lens} setLens={setLens} />}
-        {tab === "templates" && <TemplatePicker onApply={onApplyTemplate} />}
-        {tab === "library" && <ComponentLibrary />}
-      </div>
-    </aside>
-  );
-}
+  const [openTab, setOpenTab] = useState<LeftTab | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-function TabBtn({
-  active, onClick, icon: Icon, children,
-}: {
-  active: boolean; onClick: () => void;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
+  // close the flyout when the user clicks outside of either the rail or panel.
+  useEffect(() => {
+    if (!openTab) return;
+    const onDown = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpenTab(null);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [openTab]);
+
+  const railBtn = (
+    tab: LeftTab,
+    Icon: React.ComponentType<{ size?: number; className?: string }>,
+    label: string,
+  ) => (
     <button
-      onClick={onClick}
-      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 font-mono text-[9px] uppercase tracking-[0.18em] transition-colors
-        ${active ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+      key={tab}
+      onClick={() => setOpenTab((cur) => (cur === tab ? null : tab))}
+      title={label}
+      aria-label={label}
+      className={`size-10 inline-flex items-center justify-center rounded-md transition-colors
+        ${openTab === tab ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
     >
-      <Icon size={11} /> {children}
+      <Icon size={16} />
     </button>
+  );
+
+  return (
+    <div ref={containerRef} className="relative shrink-0 z-30">
+      <div className="w-12 h-full border-r border-border bg-sidebar flex flex-col items-center py-2 gap-1">
+        {railBtn("tree", Layers, "tree")}
+        {railBtn("templates", FolderOpen, "templates")}
+        {railBtn("library", Boxes, "library")}
+      </div>
+      {openTab && (
+        <aside
+          className="absolute top-0 left-12 h-full w-64 border-r border-border bg-sidebar shadow-xl flex flex-col"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-stone-500">{openTab}</span>
+            <button
+              onClick={() => setOpenTab(null)}
+              className="size-6 inline-flex items-center justify-center rounded text-stone-500 hover:bg-stone-100"
+              aria-label="close panel"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3">
+            {openTab === "tree" && <ProjectTree regions={regions} lens={lens} setLens={setLens} />}
+            {openTab === "templates" && <TemplatePicker onApply={onApplyTemplate} />}
+            {openTab === "library" && <ComponentLibrary />}
+          </div>
+        </aside>
+      )}
+    </div>
   );
 }
 
@@ -348,22 +383,99 @@ function ComponentLibrary() {
 }
 
 // ============================================================
-// right sidebar
+// readiness floating modal
 // ============================================================
-export function RightSidebar({ health }: { health: ProjectHealthInput }) {
+// the readiness panel is no longer a permanent sidebar. it floats as
+// a draggable card so the preview can use the full canvas, and the
+// user only sees it when they explicitly open it from the trigger.
+export function ReadinessFloating({ health }: { health: ProjectHealthInput }) {
+  const [open, setOpen] = useState(false);
+  // default position: roughly top-right of the viewport.
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    if (typeof window === "undefined") return { x: 100, y: 100 };
+    return { x: Math.max(20, window.innerWidth - 360), y: 120 };
+  });
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="manufacturing readiness"
+        aria-label="manufacturing readiness"
+        className="fixed top-24 right-5 z-40 size-11 rounded-full bg-stone-900 text-stone-50 shadow-lg hover:bg-stone-800 inline-flex items-center justify-center"
+      >
+        <Gauge size={18} />
+      </button>
+      {open && <ReadinessModal health={health} pos={pos} setPos={setPos} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function ReadinessModal({
+  health, pos, setPos, onClose,
+}: {
+  health: ProjectHealthInput;
+  pos: { x: number; y: number };
+  setPos: (p: { x: number; y: number }) => void;
+  onClose: () => void;
+}) {
+  const dragState = useRef<{ dx: number; dy: number } | null>(null);
   const checks = buildHealthChecks(health);
   const score = readinessScore(checks);
   const costs = estimateCost(health);
+
+  function onDragStart(e: React.MouseEvent) {
+    dragState.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragState.current) return;
+      const nx = Math.max(0, Math.min(window.innerWidth - 320, ev.clientX - dragState.current.dx));
+      const ny = Math.max(0, Math.min(window.innerHeight - 80, ev.clientY - dragState.current.dy));
+      setPos({ x: nx, y: ny });
+    };
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   return (
-    <aside className="w-72 shrink-0 border-l border-border bg-sidebar flex flex-col overflow-y-auto">
-      <ReadinessHeader score={score} />
-      <div className="p-3 space-y-4">
-        <ProjectHealthPanel checks={checks} />
-        <CostPanel costs={costs} />
+    <div
+      className="fixed z-50 w-80 max-h-[80vh] bg-card border border-border rounded-md shadow-2xl flex flex-col"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <div
+        onMouseDown={onDragStart}
+        className="flex items-center gap-2 px-3 py-2 border-b border-border bg-sidebar cursor-grab active:cursor-grabbing rounded-t-md select-none"
+      >
+        <GripHorizontal size={14} className="text-stone-400" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-600 flex-1">
+          manufacturing readiness
+        </span>
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={onClose}
+          className="size-6 inline-flex items-center justify-center rounded text-stone-500 hover:bg-stone-100"
+          aria-label="close"
+        >
+          <X size={12} />
+        </button>
       </div>
-    </aside>
+      <div className="overflow-y-auto">
+        <ReadinessHeader score={score} />
+        <div className="p-3 space-y-4">
+          <ProjectHealthPanel checks={checks} />
+          <CostPanel costs={costs} />
+        </div>
+      </div>
+    </div>
   );
 }
+
+// kept as a named export in case anything else imports it; aliased.
+export const RightSidebar = ReadinessFloating;
 
 type HealthCheck = {
   id: string;
