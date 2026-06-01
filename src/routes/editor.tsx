@@ -251,6 +251,8 @@ function EditorPage() {
           lens={stage}
           setLens={setStage}
           onApplyTemplate={applyTemplate}
+          health={healthInput}
+          tips={TIPS_BY_LENS[stage]}
         />
         <main className="flex-1 flex min-w-0 relative">
           {stage === "layout" ? (
@@ -280,7 +282,6 @@ function EditorPage() {
           )}
         </main>
       </div>
-      <ReadinessFloating health={healthInput} />
     </div>
   );
 }
