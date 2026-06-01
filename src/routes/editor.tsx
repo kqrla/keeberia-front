@@ -1442,3 +1442,576 @@ function SummaryStat({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+
+// ============================================================
+// flow 03 · pcb
+// ============================================================
+
+type PcbShape = "rectangular" | "rounded" | "hull" | "dxf";
+type SilkSide = "front" | "back";
+type SilkItem = {
+  id: string;
+  side: SilkSide;
+  kind: "text" | "label" | "svg";
+  text: string;
+  x: number; // 0..1 normalized
+  y: number;
+};
+
+type PcbConfig = {
+  shape: PcbShape;
+  cornerRadius: number; // mm
+  margin: number; // mm padding around components
+  pcbColor: "black" | "white" | "green" | "blue" | "red" | "purple" | "yellow";
+  finish: "hasl" | "enig" | "lead-free hasl";
+  silkFront: "white" | "black" | "yellow";
+  silkBack: "white" | "black" | "yellow";
+  usbPosition: "top" | "bottom" | "left" | "right";
+  silk: SilkItem[];
+  dxfFilename?: string;
+};
+
+const PCB_COLOR_HEX: Record<PcbConfig["pcbColor"], string> = {
+  black: "#1a1a1a",
+  white: "#f5f5f0",
+  green: "#0d4f2a",
+  blue: "#0e2a5e",
+  red: "#5e1414",
+  purple: "#3a1856",
+  yellow: "#a88600",
+};
+const SILK_HEX: Record<PcbConfig["silkFront"], string> = {
+  white: "#f5f5f0",
+  black: "#111111",
+  yellow: "#f5d76e",
+};
+
+function defaultPcb(): PcbConfig {
+  return {
+    shape: "rounded",
+    cornerRadius: 4,
+    margin: 6,
+    pcbColor: "black",
+    finish: "enig",
+    silkFront: "white",
+    silkBack: "white",
+    usbPosition: "top",
+    silk: [
+      { id: uid(), side: "front", kind: "text", text: "keeberia", x: 0.04, y: 0.04 },
+    ],
+  };
+}
+
+function PcbWorkspace({
+  rows, cols, regions,
+}: {
+  rows: number;
+  cols: number;
+  regions: Region[];
+}) {
+  const [cfg, setCfg] = useState<PcbConfig>(() => defaultPcb());
+  const [activeSide, setActiveSide] = useState<SilkSide>("front");
+
+  function patch(p: Partial<PcbConfig>) {
+    setCfg((c) => ({ ...c, ...p }));
+  }
+  function addSilk(kind: SilkItem["kind"]) {
+    const text = kind === "text" ? "label" : kind === "label" ? "1" : "logo.svg";
+    setCfg((c) => ({
+      ...c,
+      silk: [...c.silk, { id: uid(), side: activeSide, kind, text, x: 0.5, y: 0.5 }],
+    }));
+  }
+  function updateSilk(id: string, p: Partial<SilkItem>) {
+    setCfg((c) => ({ ...c, silk: c.silk.map((s) => (s.id === id ? { ...s, ...p } : s)) }));
+  }
+  function removeSilk(id: string) {
+    setCfg((c) => ({ ...c, silk: c.silk.filter((s) => s.id !== id) }));
+  }
+  function onDxfPick(file: File | null) {
+    if (!file) return;
+    patch({ shape: "dxf", dxfFilename: file.name });
+  }
+
+  const validations = useMemo(() => validatePcb(cfg, regions, rows, cols), [cfg, regions, rows, cols]);
+
+  return (
+    <div className="flex-1 flex bg-editor-canvas">
+      {/* left config */}
+      <aside className="w-72 border-r border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>shape</SectionTitle>
+        <div className="grid grid-cols-2 gap-2">
+          {(["rectangular", "rounded", "hull", "dxf"] as PcbShape[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => patch({ shape: s })}
+              className={`font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-3 rounded-md border transition-colors
+                ${cfg.shape === s
+                  ? "bg-stone-900 text-stone-50 border-stone-900"
+                  : "bg-card border-stone-300 hover:bg-stone-100"}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {cfg.shape === "rounded" && (
+          <div className="mt-3">
+            <RangeField label="corner radius" suffix="mm" min={0} max={20} value={cfg.cornerRadius}
+              onChange={(v) => patch({ cornerRadius: v })} />
+          </div>
+        )}
+        {cfg.shape === "dxf" && (
+          <label className="mt-3 block">
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">upload dxf outline</span>
+            <input
+              type="file"
+              accept=".dxf"
+              onChange={(e) => onDxfPick(e.target.files?.[0] ?? null)}
+              className="mt-1 w-full text-[11px] font-mono lowercase"
+            />
+            {cfg.dxfFilename && (
+              <div className="mt-2 font-mono text-[10px] text-stone-700 lowercase">
+                · {cfg.dxfFilename}
+              </div>
+            )}
+          </label>
+        )}
+
+        <div className="mt-3">
+          <RangeField label="edge margin" suffix="mm" min={0} max={20} value={cfg.margin}
+            onChange={(v) => patch({ margin: v })} />
+        </div>
+
+        <SectionTitle className="mt-6">appearance</SectionTitle>
+        <div className="space-y-2">
+          <label className="block">
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">pcb color</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {(Object.keys(PCB_COLOR_HEX) as PcbConfig["pcbColor"][]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => patch({ pcbColor: c })}
+                  title={c}
+                  className={`size-6 rounded border ${cfg.pcbColor === c ? "ring-2 ring-stone-900 ring-offset-1" : "border-stone-300"}`}
+                  style={{ background: PCB_COLOR_HEX[c] }}
+                />
+              ))}
+            </div>
+          </label>
+          <SelectField label="surface finish" value={cfg.finish}
+            options={["hasl", "enig", "lead-free hasl"]} onChange={(v) => patch({ finish: v as PcbConfig["finish"] })} />
+          <SelectField label="front silkscreen" value={cfg.silkFront}
+            options={["white", "black", "yellow"]} onChange={(v) => patch({ silkFront: v as PcbConfig["silkFront"] })} />
+          <SelectField label="back silkscreen" value={cfg.silkBack}
+            options={["white", "black", "yellow"]} onChange={(v) => patch({ silkBack: v as PcbConfig["silkBack"] })} />
+          <SelectField label="usb position" value={cfg.usbPosition}
+            options={["top", "bottom", "left", "right"]} onChange={(v) => patch({ usbPosition: v as PcbConfig["usbPosition"] })} />
+        </div>
+
+        <SectionTitle className="mt-6">routing</SectionTitle>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 font-mono text-[11px] lowercase text-emerald-900 leading-relaxed">
+          routing automatically generated. matrix and traces hidden by default. advanced mode coming later.
+        </div>
+      </aside>
+
+      {/* preview */}
+      <div className="flex-1 overflow-auto p-10">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">pcb preview · {activeSide}</div>
+            <div className="inline-flex rounded-md border border-border bg-card overflow-hidden">
+              {(["front", "back"] as SilkSide[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setActiveSide(s)}
+                  className={`font-mono text-[10px] uppercase tracking-[0.18em] px-3 py-1.5
+                    ${activeSide === s ? "bg-stone-900 text-stone-50" : "text-stone-600 hover:bg-stone-100"}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <PcbPreview cfg={cfg} regions={regions} rows={rows} cols={cols} side={activeSide} onMoveSilk={updateSilk} />
+
+          {/* silkscreen editor */}
+          <div className="mt-6 bg-card border border-border rounded-md p-4 analog-shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                silkscreen · {activeSide}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => addSilk("text")}
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 rounded border border-stone-300 hover:bg-stone-100">
+                  + text
+                </button>
+                <button onClick={() => addSilk("label")}
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 rounded border border-stone-300 hover:bg-stone-100">
+                  + label
+                </button>
+                <button onClick={() => addSilk("svg")}
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 rounded border border-stone-300 hover:bg-stone-100">
+                  + svg
+                </button>
+              </div>
+            </div>
+            <ul className="mt-3 divide-y divide-border">
+              {cfg.silk.filter((s) => s.side === activeSide).length === 0 && (
+                <li className="font-mono text-[11px] text-stone-500 lowercase py-3">
+                  no items on this side. add text, labels, or upload svg artwork.
+                </li>
+              )}
+              {cfg.silk.filter((s) => s.side === activeSide).map((s) => (
+                <li key={s.id} className="py-2 flex items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-stone-500 w-12">{s.kind}</span>
+                  <input
+                    value={s.text}
+                    onChange={(e) => updateSilk(s.id, { text: e.target.value })}
+                    className="flex-1 bg-card border border-border rounded px-2 py-1 font-mono text-xs lowercase focus:outline-none focus:ring-1 focus:ring-stone-900"
+                  />
+                  <button onClick={() => removeSilk(s.id)} className="text-stone-400 hover:text-rose-700">
+                    <Trash2 size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 font-mono text-[10px] lowercase text-stone-500">drag items in the preview to position. front and back are edited separately.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* validation */}
+      <aside className="w-64 border-l border-border bg-sidebar p-4 overflow-y-auto">
+        <SectionTitle>manufacturing checks</SectionTitle>
+        {validations.length === 0 ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 font-mono text-[11px] lowercase text-emerald-900">
+            all clear. design is ready to fabricate.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {validations.map((v, i) => (
+              <li key={i} className={`rounded-md p-3 font-mono text-[11px] lowercase leading-relaxed border
+                ${v.level === "error"
+                  ? "bg-rose-50 border-rose-200 text-rose-900"
+                  : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+                <span className="uppercase tracking-[0.18em] text-[9px] block mb-1 opacity-70">{v.level}</span>
+                {v.message}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <SectionTitle className="mt-6">summary</SectionTitle>
+        <div className="space-y-1.5 font-mono text-[11px] lowercase text-stone-700">
+          <SummaryRow k="shape" v={cfg.shape} />
+          <SummaryRow k="dimensions" v={`${cols * 19 + cfg.margin * 2}mm × ${rows * 19 + cfg.margin * 2}mm`} />
+          <SummaryRow k="color" v={cfg.pcbColor} />
+          <SummaryRow k="finish" v={cfg.finish} />
+          <SummaryRow k="silkscreen items" v={String(cfg.silk.length)} />
+          <SummaryRow k="usb" v={cfg.usbPosition} />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function validatePcb(cfg: PcbConfig, regions: Region[], rows: number, cols: number): { level: "warn" | "error"; message: string }[] {
+  const out: { level: "warn" | "error"; message: string }[] = [];
+  if (cfg.margin < 2) out.push({ level: "warn", message: "edge margin under 2mm. components may sit too close to the board edge." });
+  const displays = regions.filter((r) => r.type === "oled" || r.type === "eink");
+  for (const d of displays) {
+    const onEdge = d.x === 0 || d.y === 0 || d.x + d.w === cols || d.y + d.h === rows;
+    if (onEdge && cfg.margin < 5) {
+      out.push({ level: "warn", message: `display at (${d.x},${d.y}) sits near the board edge. consider a larger margin.` });
+    }
+  }
+  const encoders = regions.filter((r) => r.type === "encoder" || r.type === "knob");
+  for (const e of encoders) {
+    const neighbors = regions.filter((r) => r.id !== e.id && Math.abs(r.x - e.x) <= 1 && Math.abs(r.y - e.y) <= 1);
+    if (neighbors.some((n) => n.type === "encoder" || n.type === "knob")) {
+      out.push({ level: "warn", message: `encoder/knob at (${e.x},${e.y}) is adjacent to another rotary. check shaft clearance.` });
+      break;
+    }
+  }
+  if (cfg.shape === "rectangular" && cfg.cornerRadius > 0) {
+    // no-op
+  }
+  if (cfg.shape === "dxf" && !cfg.dxfFilename) {
+    out.push({ level: "error", message: "dxf shape selected but no outline uploaded yet." });
+  }
+  // usb accessibility heuristic
+  const usbBlocked = regions.some((r) => {
+    if (cfg.usbPosition === "top") return r.y === 0 && r.type !== "key" && r.type !== "spacer";
+    if (cfg.usbPosition === "bottom") return r.y + r.h === rows && r.type !== "key" && r.type !== "spacer";
+    if (cfg.usbPosition === "left") return r.x === 0 && r.type !== "key" && r.type !== "spacer";
+    return r.x + r.w === cols && r.type !== "key" && r.type !== "spacer";
+  });
+  if (usbBlocked) {
+    out.push({ level: "warn", message: `usb on the ${cfg.usbPosition} edge may be obstructed by a display or rotary component.` });
+  }
+  return out;
+}
+
+function PcbPreview({
+  cfg, regions, rows, cols, side, onMoveSilk,
+}: {
+  cfg: PcbConfig;
+  regions: Region[];
+  rows: number;
+  cols: number;
+  side: SilkSide;
+  onMoveSilk: (id: string, p: Partial<SilkItem>) => void;
+}) {
+  const CELL = 44;
+  const GAP_PCB = 6;
+  const padding = Math.max(12, cfg.margin * 2);
+  const innerW = cols * CELL + (cols - 1) * GAP_PCB;
+  const innerH = rows * CELL + (rows - 1) * GAP_PCB;
+  const boardW = innerW + padding * 2;
+  const boardH = innerH + padding * 2;
+
+  const bg = PCB_COLOR_HEX[cfg.pcbColor];
+  const silkColor = SILK_HEX[side === "front" ? cfg.silkFront : cfg.silkBack];
+  const isDarkBoard = ["black", "green", "blue", "red", "purple"].includes(cfg.pcbColor);
+
+  const borderRadius =
+    cfg.shape === "rectangular" ? 0
+    : cfg.shape === "rounded" ? cfg.cornerRadius * 2
+    : cfg.shape === "hull" ? 18
+    : 12;
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  function onSilkDrag(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const board = boardRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    function move(ev: MouseEvent) {
+      const x = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+      onMoveSilk(id, { x, y });
+    }
+    function up() {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
+
+  // usb tab
+  const tabW = 24, tabH = 8;
+  const tabStyle: React.CSSProperties = (() => {
+    switch (cfg.usbPosition) {
+      case "top": return { left: boardW / 2 - tabW / 2, top: -tabH + 1, width: tabW, height: tabH };
+      case "bottom": return { left: boardW / 2 - tabW / 2, bottom: -tabH + 1, width: tabW, height: tabH };
+      case "left": return { top: boardH / 2 - tabW / 2, left: -tabH + 1, width: tabH, height: tabW };
+      case "right": return { top: boardH / 2 - tabW / 2, right: -tabH + 1, width: tabH, height: tabW };
+    }
+  })();
+
+  // mounting holes (corners)
+  const holeInset = padding / 2;
+  const holes = [
+    { left: holeInset, top: holeInset },
+    { right: holeInset, top: holeInset },
+    { left: holeInset, bottom: holeInset },
+    { right: holeInset, bottom: holeInset },
+  ];
+
+  return (
+    <div
+      ref={boardRef}
+      className="relative mx-auto select-none"
+      style={{
+        width: boardW,
+        height: boardH,
+        background: bg,
+        borderRadius,
+        boxShadow: "0 14px 40px -18px rgba(0,0,0,0.45), inset 0 0 0 2px rgba(0,0,0,0.25)",
+      }}
+    >
+      {/* usb tab */}
+      <div
+        className="absolute bg-stone-300 border border-stone-400 rounded-[2px]"
+        style={tabStyle}
+        title={`usb · ${cfg.usbPosition}`}
+      />
+
+      {/* mounting holes */}
+      {holes.map((h, i) => (
+        <div
+          key={i}
+          className="absolute size-2 rounded-full bg-stone-900/70 border border-stone-100/30"
+          style={{ ...h, transform: "translate(-50%,-50%)", marginLeft: 0, marginTop: 0 }}
+        />
+      ))}
+
+      {/* component footprints */}
+      <div
+        className="absolute"
+        style={{ left: padding, top: padding, width: innerW, height: innerH }}
+      >
+        {regions.map((r) => {
+          const left = r.x * (CELL + GAP_PCB);
+          const top = r.y * (CELL + GAP_PCB);
+          const w = r.w * CELL + (r.w - 1) * GAP_PCB;
+          const h = r.h * CELL + (r.h - 1) * GAP_PCB;
+          return (
+            <div
+              key={r.id}
+              className="absolute"
+              style={{ left, top, width: w, height: h }}
+            >
+              <PcbFootprint type={r.type} w={w} h={h} silkColor={silkColor} isDarkBoard={isDarkBoard} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* silkscreen overlay */}
+      {cfg.silk.filter((s) => s.side === side).map((s) => (
+        <div
+          key={s.id}
+          onMouseDown={(e) => onSilkDrag(e, s.id)}
+          className="absolute cursor-move font-mono text-[10px] uppercase tracking-[0.18em] px-1 py-0.5 rounded hover:ring-1 hover:ring-white/40"
+          style={{
+            left: `${s.x * 100}%`,
+            top: `${s.y * 100}%`,
+            color: silkColor,
+            transform: "translate(-50%,-50%)",
+          }}
+          title={`drag to position · ${s.kind}`}
+        >
+          {s.kind === "svg" ? `[${s.text}]` : s.text}
+        </div>
+      ))}
+
+      {/* rev label */}
+      <div
+        className="absolute bottom-1 right-2 font-mono text-[9px] uppercase tracking-[0.22em] opacity-70"
+        style={{ color: silkColor }}
+      >
+        keeberia · rev 1
+      </div>
+    </div>
+  );
+}
+
+function PcbFootprint({
+  type, w, h, silkColor, isDarkBoard,
+}: { type: CompType; w: number; h: number; silkColor: string; isDarkBoard: boolean }) {
+  const padColor = isDarkBoard ? "rgba(240, 220, 150, 0.9)" : "rgba(180, 140, 60, 0.85)";
+  const outlineColor = silkColor;
+  if (type === "key") {
+    const cutout = Math.min(w, h) * 0.55;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 rounded-[3px] border border-dashed" style={{ borderColor: `${outlineColor}55` }} />
+        <div
+          className="rounded-[3px]"
+          style={{ width: cutout, height: cutout, background: "transparent", boxShadow: `inset 0 0 0 1.5px ${outlineColor}aa` }}
+        />
+      </div>
+    );
+  }
+  if (type === "encoder" || type === "knob") {
+    const d = Math.min(w, h) - 8;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          className="rounded-full"
+          style={{ width: d, height: d, boxShadow: `inset 0 0 0 1.5px ${outlineColor}aa` }}
+        />
+        <div className="absolute size-1.5 rounded-full" style={{ background: padColor }} />
+      </div>
+    );
+  }
+  if (type === "oled" || type === "eink") {
+    return (
+      <div className="absolute inset-1 rounded-sm" style={{ boxShadow: `inset 0 0 0 1.5px ${outlineColor}aa` }}>
+        <div className="absolute inset-1 rounded-sm" style={{ background: "rgba(0,0,0,0.55)" }} />
+      </div>
+    );
+  }
+  if (type === "joystick") {
+    const d = Math.min(w, h) - 10;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-full" style={{ width: d, height: d, boxShadow: `inset 0 0 0 1.5px ${outlineColor}aa` }} />
+      </div>
+    );
+  }
+  if (type === "touch") {
+    return (
+      <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 h-1.5 rounded-full" style={{ background: `${outlineColor}55` }} />
+    );
+  }
+  if (type === "spacer") return null;
+  // blocker
+  return (
+    <div className="absolute inset-0 flex items-center justify-center" style={{ color: `${outlineColor}aa` }}>
+      <X size={Math.min(w, h) / 3} />
+    </div>
+  );
+}
+
+function SectionTitle({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-2 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function RangeField({
+  label, value, min, max, onChange, suffix,
+}: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string }) {
+  return (
+    <label className="block">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">{label}</span>
+        <span className="font-mono text-[10px] text-stone-700">{value}{suffix}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-1 w-full"
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label, value, options, onChange,
+}: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full bg-card border border-border rounded-md px-2 py-1.5 font-mono text-xs lowercase focus:outline-none focus:ring-2 focus:ring-stone-900"
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SummaryRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-dashed border-border pb-1">
+      <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">{k}</span>
+      <span className="text-right">{v}</span>
+    </div>
+  );
+}
