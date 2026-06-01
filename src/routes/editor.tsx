@@ -7,6 +7,7 @@ import {
   Check,
 } from "lucide-react";
 import { Comp2D, type CompType } from "../components/keeberia/Comp2D";
+import { LeftSidebar, RightSidebar, type ProjectTemplate } from "../components/keeberia/EditorPanels";
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
