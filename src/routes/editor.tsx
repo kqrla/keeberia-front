@@ -165,8 +165,6 @@ function EditorPage() {
     setReady(true);
   }, []);
 
-  if (!ready) return null;
-
   const stageIdx = STAGES.indexOf(stage);
   const next = () => stageIdx < STAGES.length - 1 && setStage(STAGES[stageIdx + 1]);
   const prev = () => stageIdx > 0 && setStage(STAGES[stageIdx - 1]);
@@ -178,7 +176,9 @@ function EditorPage() {
     setProjectName(t.name);
   }
 
-  // health inputs derived from the live project model.
+  // health inputs derived from the live project model. these hooks must
+  // run on every render — never gate them behind an early return, or
+  // react sees a changing hook count between renders.
   const pcbValidations = useMemo(
     () => validatePcb(pcbCfg, regions, rows, cols),
     [pcbCfg, regions, rows, cols],
@@ -187,6 +187,8 @@ function EditorPage() {
     () => validateCase(caseCfg, regions, rows, cols),
     [caseCfg, regions, rows, cols],
   );
+
+  if (!ready) return null;
 
   const healthInput = {
     rows, cols,
