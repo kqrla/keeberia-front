@@ -2327,9 +2327,13 @@ function defaultCaps(): CapsConfig {
 const CAP_PRESETS = ["#e9e4d8", "#1c1c1c", "#c94f4f", "#3a6ea5", "#e8b84a", "#5f8a5a", "#8a5fb4"];
 const KNOB_STYLES: KnobStyle[] = ["smooth", "ribbed", "fluted", "synth", "industrial", "low profile"];
 
-function CapsWorkspace({ rows, cols, regions }: { rows: number; cols: number; regions: Region[] }) {
-  const [cfg, setCfg] = useState<CapsConfig>(() => defaultCaps());
-  const [caseCfg] = useState<CaseConfig>(() => defaultCase());
+function CapsWorkspace({
+  rows, cols, regions, cfg, setCfg, caseCfg,
+}: {
+  rows: number; cols: number; regions: Region[];
+  cfg: CapsConfig; setCfg: React.Dispatch<React.SetStateAction<CapsConfig>>;
+  caseCfg: CaseConfig;
+}) {
   function patch(p: Partial<CapsConfig>) { setCfg((c) => ({ ...c, ...p })); }
 
   const keys = regions.filter((r) => r.type === "key");
