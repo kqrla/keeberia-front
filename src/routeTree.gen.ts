@@ -9,38 +9,197 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StartRouteImport } from './routes/start'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as PhilosophyRouteImport } from './routes/philosophy'
+import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as EditorRouteImport } from './routes/editor'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HowitworksFlowRouteImport } from './routes/howitworks.flow'
+import { Route as HowitworksFlowIndexRouteImport } from './routes/howitworks.flow.index'
+import { Route as HowitworksFlowSlugRouteImport } from './routes/howitworks.flow.$slug'
 
+const StartRoute = StartRouteImport.update({
+  id: '/start',
+  path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhilosophyRoute = PhilosophyRouteImport.update({
+  id: '/philosophy',
+  path: '/philosophy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EditorRoute = EditorRouteImport.update({
+  id: '/editor',
+  path: '/editor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HowitworksFlowRoute = HowitworksFlowRouteImport.update({
+  id: '/howitworks/flow',
+  path: '/howitworks/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowitworksFlowIndexRoute = HowitworksFlowIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HowitworksFlowRoute,
+} as any)
+const HowitworksFlowSlugRoute = HowitworksFlowSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => HowitworksFlowRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/editor': typeof EditorRoute
+  '/features': typeof FeaturesRoute
+  '/philosophy': typeof PhilosophyRoute
+  '/roadmap': typeof RoadmapRoute
+  '/start': typeof StartRoute
+  '/howitworks/flow': typeof HowitworksFlowRouteWithChildren
+  '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
+  '/howitworks/flow/': typeof HowitworksFlowIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/editor': typeof EditorRoute
+  '/features': typeof FeaturesRoute
+  '/philosophy': typeof PhilosophyRoute
+  '/roadmap': typeof RoadmapRoute
+  '/start': typeof StartRoute
+  '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
+  '/howitworks/flow': typeof HowitworksFlowIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/editor': typeof EditorRoute
+  '/features': typeof FeaturesRoute
+  '/philosophy': typeof PhilosophyRoute
+  '/roadmap': typeof RoadmapRoute
+  '/start': typeof StartRoute
+  '/howitworks/flow': typeof HowitworksFlowRouteWithChildren
+  '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
+  '/howitworks/flow/': typeof HowitworksFlowIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/editor'
+    | '/features'
+    | '/philosophy'
+    | '/roadmap'
+    | '/start'
+    | '/howitworks/flow'
+    | '/howitworks/flow/$slug'
+    | '/howitworks/flow/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/about'
+    | '/editor'
+    | '/features'
+    | '/philosophy'
+    | '/roadmap'
+    | '/start'
+    | '/howitworks/flow/$slug'
+    | '/howitworks/flow'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/editor'
+    | '/features'
+    | '/philosophy'
+    | '/roadmap'
+    | '/start'
+    | '/howitworks/flow'
+    | '/howitworks/flow/$slug'
+    | '/howitworks/flow/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  EditorRoute: typeof EditorRoute
+  FeaturesRoute: typeof FeaturesRoute
+  PhilosophyRoute: typeof PhilosophyRoute
+  RoadmapRoute: typeof RoadmapRoute
+  StartRoute: typeof StartRoute
+  HowitworksFlowRoute: typeof HowitworksFlowRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/start': {
+      id: '/start'
+      path: '/start'
+      fullPath: '/start'
+      preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/philosophy': {
+      id: '/philosophy'
+      path: '/philosophy'
+      fullPath: '/philosophy'
+      preLoaderRoute: typeof PhilosophyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/editor': {
+      id: '/editor'
+      path: '/editor'
+      fullPath: '/editor'
+      preLoaderRoute: typeof EditorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +207,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/howitworks/flow': {
+      id: '/howitworks/flow'
+      path: '/howitworks/flow'
+      fullPath: '/howitworks/flow'
+      preLoaderRoute: typeof HowitworksFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/howitworks/flow/': {
+      id: '/howitworks/flow/'
+      path: '/'
+      fullPath: '/howitworks/flow/'
+      preLoaderRoute: typeof HowitworksFlowIndexRouteImport
+      parentRoute: typeof HowitworksFlowRoute
+    }
+    '/howitworks/flow/$slug': {
+      id: '/howitworks/flow/$slug'
+      path: '/$slug'
+      fullPath: '/howitworks/flow/$slug'
+      preLoaderRoute: typeof HowitworksFlowSlugRouteImport
+      parentRoute: typeof HowitworksFlowRoute
+    }
   }
 }
 
+interface HowitworksFlowRouteChildren {
+  HowitworksFlowSlugRoute: typeof HowitworksFlowSlugRoute
+  HowitworksFlowIndexRoute: typeof HowitworksFlowIndexRoute
+}
+
+const HowitworksFlowRouteChildren: HowitworksFlowRouteChildren = {
+  HowitworksFlowSlugRoute: HowitworksFlowSlugRoute,
+  HowitworksFlowIndexRoute: HowitworksFlowIndexRoute,
+}
+
+const HowitworksFlowRouteWithChildren = HowitworksFlowRoute._addFileChildren(
+  HowitworksFlowRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  EditorRoute: EditorRoute,
+  FeaturesRoute: FeaturesRoute,
+  PhilosophyRoute: PhilosophyRoute,
+  RoadmapRoute: RoadmapRoute,
+  StartRoute: StartRoute,
+  HowitworksFlowRoute: HowitworksFlowRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
