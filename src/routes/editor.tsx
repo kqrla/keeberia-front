@@ -219,7 +219,7 @@ function EditorPage() {
           setLens={setStage}
           onApplyTemplate={applyTemplate}
         />
-        <main className="flex-1 flex min-w-0">
+        <main className="flex-1 flex min-w-0 relative">
           {stage === "layout" ? (
             <EditorWorkspace
               rows={rows}
@@ -246,8 +246,8 @@ function EditorPage() {
             <StagePlaceholder stage={stage} regions={regions} rows={rows} cols={cols} />
           )}
         </main>
-        <RightSidebar health={healthInput} />
       </div>
+      <ReadinessFloating health={healthInput} />
     </div>
   );
 }
