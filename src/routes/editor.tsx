@@ -1488,13 +1488,6 @@ function ComponentsWorkspace({
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-border font-mono text-[10px] text-muted-foreground leading-relaxed">
-          <div className="uppercase tracking-[0.22em] mb-2">tips</div>
-          <p>· click a cell to select</p>
-          <p>· shift-click to multi-select</p>
-          <p>· click a palette item to assign</p>
-          <p>· filter view to focus on one type</p>
-        </div>
       </aside>
     </div>
   );
