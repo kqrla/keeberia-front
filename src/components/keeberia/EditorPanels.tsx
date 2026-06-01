@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Square, Circle, Disc,
   Monitor, RectangleHorizontal, Gamepad2, Minus, Dot, X,
   CheckCircle2, AlertTriangle, Circle as CircleIcon,
-  Gauge, GripHorizontal,
+  Gauge, GripHorizontal, Info,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
