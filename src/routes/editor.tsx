@@ -1064,12 +1064,14 @@ function Canvas({
 }
 
 function CellTile({
-  region, selected, onClick, onContextMenu,
+  cell, region, selected, onClick, onContextMenu,
 }: {
+  cell: number;
   region: Region; selected: boolean;
   onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
+  const CELL = cell;
   const left = region.x * (CELL + GAP);
   const top = region.y * (CELL + GAP);
   const w = region.w * CELL + (region.w - 1) * GAP;
