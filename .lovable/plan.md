@@ -1,51 +1,40 @@
-# integrate kqrla/keeberia engines + render deployment
+# behind the scenes pages
 
-## goal
-connect the existing keeberia editor to the manufacturing engine from `kqrla/keeberia` and make it deployable on render using the $50 credit balance.
+three new marketing pages that explain how keeberia actually turns a layout into a real object, written from the repo's own engine docs so nothing is invented.
 
-## phase 1 — vendor the engines locally
-1. fetch the public `kqrla/keeberia` repo into a temporary sandbox directory.
-2. copy only the deterministic engine code into this project:
-   - `backend/engines/pcb/pcb-engine` → `src/lib/keeberia-engines/pcb/`
-   - `backend/engines/cad/case-engine` → `src/lib/keeberia-engines/case/`
-   - `backend/engines/cad/caps-engine` → `src/lib/keeberia-engines/caps/`
-3. inspect each engine for runtime dependencies (node-only apis, native modules, file system assumptions). replace or shim anything that breaks the cloudflare worker runtime.
-4. add a thin adapter that converts the editor's internal region model into the engine's expected layout json.
+## /bts — behind the scenes
 
-## phase 2 — add fast local exports
-1. create server functions under `src/lib/keeberia-engines/` that run the pcb/case/caps engines synchronously.
-2. add an "export" menu to the editor with options:
-   - download `.kicad_pcb`
-   - download gerber zip
-   - download bom csv
-   - download svg preview
-   - download case geometry (step/dxf when available)
-3. validate exports against a few preset layouts before moving to the worker.
+the hub page. what happens after you stop dragging things around.
 
-## phase 3 — render worker deployment
-1. create a minimal express/fastify entry point in a new top-level `worker/` directory that exposes a single http endpoint:
-   - `POST /manufacture` — accepts layout json, returns `{ kicad_pcb, gerbers?, svg?, bom?, case?, caps? }`.
-2. add a `worker/render.yaml` so render can deploy it as a web service.
-3. add environment-based toggles in this frontend:
-   - `VITE_MANUFACTURE_WORKER_URL` — points to the render service.
-   - fallback to local server function when the worker is not configured.
+- opening statement: you design a macropad like a figma file, and a deterministic pipeline turns it into copper, plastic and firmware. no ai in the copper path, same input gives the same board forever.
+- the pipeline shown as a single line: layout json → circuitron (board) → paracraft (case and plate) → exports you can send to a factory.
+- two large cards linking to the engine pages, each with a lucide icon, a one-line summary and the outputs it produces.
+- a short "what you get out" strip: kicad board file, gerbers and drill, bill of materials, svg preview, qmk and vial firmware, openscad and stl case parts.
+- a note on determinism and on validation being written in plain human sentences rather than error codes.
+- closing call to action into the editor.
 
-## phase 4 — documentation
-update the required project docs to reflect the new architecture:
-- `underthehood.md` — how the editor, local engines, and render worker fit together.
-- `techstack.md` — add the engine tech and render hosting choice with reasoning.
-- `features.md` — list the new export features.
-- `roadmap.md` — mark engine integration and render deployment as done/in-progress.
-- `port.md` — local dev steps now include running the worker.
-- `portsb.md` — map the render worker to a supabase edge function alternative.
-- `overview.md` — mention manufacturable exports as a core capability.
+## /bts/engines/circuitron — the pcb engine
 
-## out of scope for this plan
-- writing a custom router / replacing tanstack start.
-- moving the entire frontend to render.
-- paid render database or persistent storage on render.
+- headline: layout in, manufacturable board out.
+- the pipeline stages as numbered blocks: placement, netlist (direct gpio or diode matrix fallback), routing (fan-out stubs plus negotiated-congestion a star on a 0.5mm grid with keepouts and vias), kicad 8 export, design rule check, bom, silkscreen, svg preview.
+- outputs list with the real artifact names.
+- a rules section quoting the engine's own guarantees: pad geometry lives in one verified place, new parts get footprint-verified against three sources or a datasheet before entering the library, the router never leaves the board edge, no timestamps or randomness in the output.
+- reference boards it is tested against: hackpad-3key, ninepad, ninepad-choc, streamdeck.
 
-## success criteria
-- editor can export a `.kicad_pcb` from a layout without leaving the browser.
-- worker runs on render and returns the same outputs as the local engine.
-- all required docs are updated and accurate.
+## /bts/engines/paracraft — the case engine
+
+- headline: the board becomes an enclosure.
+- the two printed parts explained: case bottom tray with floor, walls, standoffs and a usb-c slot cut on the side the mcu actually faces, and the top plate with 14mm mx openings, 10mm encoder shaft holes, oled window and m2 screw holes.
+- the parameter block presented as the slider set the configurator exposes: pcb width and height, case margin, wall thickness, base thickness, corner radius, front height, rear height, standoff height, screw size, plate thickness.
+- component-driven sizing: dimensions come from part metadata such as the usb-c shell and mx plate opening, not from copying an existing keyboard.
+- validation examples written the way the engine writes them, as sentences a person can act on.
+- output: one dependency-free openscad file per board, plus stl when openscad is available.
+
+## technical notes
+
+- new route files, flat naming so no extra layout wrapper is needed: `src/routes/bts.index.tsx`, `src/routes/bts.engines.circuitron.tsx`, `src/routes/bts.engines.paracraft.tsx`.
+- each page reuses `SiteHeader` / `SiteFooter` and the existing section rhythm from `philosophy.tsx` and `about.tsx`: mono eyebrow labels, `font-display` lowercase headings, alternating `bg-secondary/40` bands, `analog-shadow-sm` cards.
+- lucide icons only, no emojis, all copy lowercase, no em dashes.
+- add "behind the scenes" and the two engine entries to the "other" dropdown in `src/components/keeberia/SiteChrome.tsx`, under a new group label.
+- each route gets its own `head()` with a unique title, description and og tags. no og:image, since there is no absolute hosted image for these pages.
+- content only, no backend work and no changes to the editor.
