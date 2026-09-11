@@ -16,9 +16,12 @@ import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EditorRouteImport } from './routes/editor'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BtsIndexRouteImport } from './routes/bts.index'
 import { Route as HowitworksFlowRouteImport } from './routes/howitworks.flow'
 import { Route as HowitworksFlowIndexRouteImport } from './routes/howitworks.flow.index'
 import { Route as HowitworksFlowSlugRouteImport } from './routes/howitworks.flow.$slug'
+import { Route as BtsEnginesParacraftRouteImport } from './routes/bts.engines.paracraft'
+import { Route as BtsEnginesCircuitronRouteImport } from './routes/bts.engines.circuitron'
 
 const StartRoute = StartRouteImport.update({
   id: '/start',
@@ -55,6 +58,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BtsIndexRoute = BtsIndexRouteImport.update({
+  id: '/bts/',
+  path: '/bts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HowitworksFlowRoute = HowitworksFlowRouteImport.update({
   id: '/howitworks/flow',
   path: '/howitworks/flow',
@@ -70,6 +78,16 @@ const HowitworksFlowSlugRoute = HowitworksFlowSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => HowitworksFlowRoute,
 } as any)
+const BtsEnginesParacraftRoute = BtsEnginesParacraftRouteImport.update({
+  id: '/bts/engines/paracraft',
+  path: '/bts/engines/paracraft',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BtsEnginesCircuitronRoute = BtsEnginesCircuitronRouteImport.update({
+  id: '/bts/engines/circuitron',
+  path: '/bts/engines/circuitron',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +98,9 @@ export interface FileRoutesByFullPath {
   '/roadmap': typeof RoadmapRoute
   '/start': typeof StartRoute
   '/howitworks/flow': typeof HowitworksFlowRouteWithChildren
+  '/bts/': typeof BtsIndexRoute
+  '/bts/engines/circuitron': typeof BtsEnginesCircuitronRoute
+  '/bts/engines/paracraft': typeof BtsEnginesParacraftRoute
   '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
   '/howitworks/flow/': typeof HowitworksFlowIndexRoute
 }
@@ -91,6 +112,9 @@ export interface FileRoutesByTo {
   '/philosophy': typeof PhilosophyRoute
   '/roadmap': typeof RoadmapRoute
   '/start': typeof StartRoute
+  '/bts': typeof BtsIndexRoute
+  '/bts/engines/circuitron': typeof BtsEnginesCircuitronRoute
+  '/bts/engines/paracraft': typeof BtsEnginesParacraftRoute
   '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
   '/howitworks/flow': typeof HowitworksFlowIndexRoute
 }
@@ -104,6 +128,9 @@ export interface FileRoutesById {
   '/roadmap': typeof RoadmapRoute
   '/start': typeof StartRoute
   '/howitworks/flow': typeof HowitworksFlowRouteWithChildren
+  '/bts/': typeof BtsIndexRoute
+  '/bts/engines/circuitron': typeof BtsEnginesCircuitronRoute
+  '/bts/engines/paracraft': typeof BtsEnginesParacraftRoute
   '/howitworks/flow/$slug': typeof HowitworksFlowSlugRoute
   '/howitworks/flow/': typeof HowitworksFlowIndexRoute
 }
@@ -118,6 +145,9 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/start'
     | '/howitworks/flow'
+    | '/bts/'
+    | '/bts/engines/circuitron'
+    | '/bts/engines/paracraft'
     | '/howitworks/flow/$slug'
     | '/howitworks/flow/'
   fileRoutesByTo: FileRoutesByTo
@@ -129,6 +159,9 @@ export interface FileRouteTypes {
     | '/philosophy'
     | '/roadmap'
     | '/start'
+    | '/bts'
+    | '/bts/engines/circuitron'
+    | '/bts/engines/paracraft'
     | '/howitworks/flow/$slug'
     | '/howitworks/flow'
   id:
@@ -141,6 +174,9 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/start'
     | '/howitworks/flow'
+    | '/bts/'
+    | '/bts/engines/circuitron'
+    | '/bts/engines/paracraft'
     | '/howitworks/flow/$slug'
     | '/howitworks/flow/'
   fileRoutesById: FileRoutesById
@@ -154,6 +190,9 @@ export interface RootRouteChildren {
   RoadmapRoute: typeof RoadmapRoute
   StartRoute: typeof StartRoute
   HowitworksFlowRoute: typeof HowitworksFlowRouteWithChildren
+  BtsIndexRoute: typeof BtsIndexRoute
+  BtsEnginesCircuitronRoute: typeof BtsEnginesCircuitronRoute
+  BtsEnginesParacraftRoute: typeof BtsEnginesParacraftRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -207,6 +246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bts/': {
+      id: '/bts/'
+      path: '/bts'
+      fullPath: '/bts/'
+      preLoaderRoute: typeof BtsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/howitworks/flow': {
       id: '/howitworks/flow'
       path: '/howitworks/flow'
@@ -227,6 +273,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/howitworks/flow/$slug'
       preLoaderRoute: typeof HowitworksFlowSlugRouteImport
       parentRoute: typeof HowitworksFlowRoute
+    }
+    '/bts/engines/paracraft': {
+      id: '/bts/engines/paracraft'
+      path: '/bts/engines/paracraft'
+      fullPath: '/bts/engines/paracraft'
+      preLoaderRoute: typeof BtsEnginesParacraftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bts/engines/circuitron': {
+      id: '/bts/engines/circuitron'
+      path: '/bts/engines/circuitron'
+      fullPath: '/bts/engines/circuitron'
+      preLoaderRoute: typeof BtsEnginesCircuitronRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -254,6 +314,9 @@ const rootRouteChildren: RootRouteChildren = {
   RoadmapRoute: RoadmapRoute,
   StartRoute: StartRoute,
   HowitworksFlowRoute: HowitworksFlowRouteWithChildren,
+  BtsIndexRoute: BtsIndexRoute,
+  BtsEnginesCircuitronRoute: BtsEnginesCircuitronRoute,
+  BtsEnginesParacraftRoute: BtsEnginesParacraftRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -14,6 +14,14 @@ const OTHER_LINKS = [
   { to: "/roadmap", label: "roadmap" },
 ] as const;
 
+// the engine pages sit under the behind-the-scenes hub, so they are grouped
+// together in the menu rather than scattered among the general pages.
+const BTS_LINKS = [
+  { to: "/bts", label: "behind the scenes" },
+  { to: "/bts/engines/circuitron", label: "circuitron · pcb engine" },
+  { to: "/bts/engines/paracraft", label: "paracraft · case engine" },
+] as const;
+
 const FLOW_LINKS = [
   { to: "/howitworks/flow", slug: null, label: "flow · overview" },
   { to: "/howitworks/flow/$slug", slug: "layout", label: "flow 01 · layout" },
@@ -27,6 +35,7 @@ export function SiteHeader() {
   const { pathname } = useLocation();
   const otherActive =
     pathname.startsWith("/howitworks") ||
+    pathname.startsWith("/bts") ||
     pathname === "/philosophy" ||
     pathname === "/roadmap";
 
@@ -70,6 +79,20 @@ export function SiteHeader() {
                   <Link
                     to={l.to as any}
                     className="font-mono text-[11px] uppercase tracking-[0.16em] lowercase"
+                  >
+                    {l.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                under the hood
+              </DropdownMenuLabel>
+              {BTS_LINKS.map((l) => (
+                <DropdownMenuItem key={l.to} asChild>
+                  <Link
+                    to={l.to as any}
+                    className="font-mono text-[11px] tracking-[0.12em] lowercase"
                   >
                     {l.label}
                   </Link>
