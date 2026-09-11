@@ -35,6 +35,7 @@ export function SiteHeader() {
   const { pathname } = useLocation();
   const otherActive =
     pathname.startsWith("/howitworks") ||
+    pathname.startsWith("/bts") ||
     pathname === "/philosophy" ||
     pathname === "/roadmap";
 
