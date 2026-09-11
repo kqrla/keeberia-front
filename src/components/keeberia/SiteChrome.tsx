@@ -86,6 +86,20 @@ export function SiteHeader() {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                under the hood
+              </DropdownMenuLabel>
+              {BTS_LINKS.map((l) => (
+                <DropdownMenuItem key={l.to} asChild>
+                  <Link
+                    to={l.to as any}
+                    className="font-mono text-[11px] tracking-[0.12em] lowercase"
+                  >
+                    {l.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 how it works
               </DropdownMenuLabel>
               {FLOW_LINKS.map((l) => (
